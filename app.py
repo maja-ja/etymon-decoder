@@ -4,6 +4,8 @@ import os
 from datetime import datetime
 import re
 import random
+import requests
+import base64
 
 # --- 基礎設定與版本 ---
 VERSION = "v1.3.1 (2024.01.16)"
@@ -12,7 +14,35 @@ CONTRIB_FILE = 'contributors.json'
 WISH_FILE = 'wish_list.txt'
 PENDING_FILE = 'pending_data.json'
 
+
 # --- 數據處理函式 ---
+def save_to_github(new_data, filename):
+    token = st.secrets["GITHUB_TOKEN"]
+    repo = st.secrets["GITHUB_REPO"]
+    url = f"https://api.github.com/repos/{repo}/contents/{filename}"
+    headers = {"Authorization": f"token {token}"}
+
+    # 1. 先抓取 GitHub 上舊檔案的內容與 SHA (GitHub 規定更新檔案必須要有 SHA)
+    r = requests.get(url, headers=headers)
+    sha = r.json().get("sha") if r.status_code == 200 else None
+    
+    # 2. 合併資料
+    current_content = []
+    if r.status_code == 200:
+        content_decoded = base64.b64decode(r.json()["content"]).decode("utf-8")
+        current_content = json.loads(content_decoded)
+    
+    current_content.extend(new_data)
+    new_json_content = json.dumps(current_content, indent=4, ensure_ascii=False)
+
+    # 3. 推送回去
+    payload = {
+        "message": f"Update {filename} via Etymon Universe App",
+        "content": base64.b64encode(new_json_content.encode("utf-8")).decode("utf-8"),
+        "sha": sha
+    }
+    res = requests.put(url, json=payload, headers=headers)
+    return res.status_code == 200 or res.status_code == 201
 def load_json(file_path, default_val):
     if os.path.exists(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
