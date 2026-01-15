@@ -153,63 +153,62 @@ if mode == "🔍 導覽解碼":
             st.info("💡 提示：輸入單字的一部分來查看相關家族。")
 
     render_section("🔎 導覽解碼系統", show_search)
+# 新增隔離區檔案路徑
+PENDING_FILE = 'pending_review.json'
+
 elif mode == "⚙️ 數據管理":
     def show_factory():
-        # --- 子區塊 A：格式化數據提交 (隔離區 1) ---
-        st.subheader("🛠️ 格式化數據匯入")
-        with st.expander("📌 點擊查看提交格式範例 (請嚴格遵守)", expanded=False):
-            st.code("""
-「（類別名稱）」類
--字根-（解釋/解釋）
-單詞（（字根）（義）+（字根）（義）= 中文含義）
-            """, language="text")
+        st.subheader("🛠️ 數據隔離提交區")
+        st.info("💡 提交的格式化數據將進入「隔離審核區」，待管理員驗證後才會正式上線。")
         
-        raw_input = st.text_area("請貼入具格式之文字", height=200, placeholder="例如：\n「動作」類\n-fac- (做)\nFactory ((fac)(做)+(tory)(場所)=工廠)")
+        # 格式提示
+        with st.expander("📌 點擊查看格式規範", expanded=False):
+            st.code("「（類別）」類\n-字根- (解釋)\n單詞 ( (根)(義) + (根)(義) = 含義 )")
         
-        c_name = st.text_input("貢獻者名稱", placeholder="留下大名或勾選匿名")
-        c_deed = st.text_input("本次事蹟", placeholder="例如：新增了 5 個醫學詞根")
-        is_c_anon = st.checkbox("我希望匿名貢獻")
+        raw_input = st.text_area("請貼入具格式之文字", height=200)
+        c_name = st.text_input("貢獻者名稱")
+        is_c_anon = st.checkbox("匿名貢獻")
 
-        if st.button("🚀 執行自動化打包"):
+        if st.button("🚀 提交至隔離審核區"):
             if raw_input:
                 try:
+                    # 解析文字
                     new_parsed_data = parse_text_to_json(raw_input)
                     if new_parsed_data:
-                        # 儲存邏輯
-                        existing_data = load_data()
-                        existing_data.extend(new_parsed_data)
-                        save_data(existing_data)
+                        # --- 核心隔離邏輯 ---
+                        # 讀取現有的「待審核資料」
+                        pending_data = load_json(PENDING_FILE, [])
+                        pending_data.extend(new_parsed_data)
+                        save_json(PENDING_FILE, pending_data)
                         
-                        # 貢獻紀錄
-                        final_contributor_name = "Anonymous" if is_c_anon else (c_name if c_name else "Anonymous")
-                        add_contribution(final_contributor_name, c_deed, is_c_anon)
+                        # 紀錄事蹟但標註為「審核中」
+                        final_name = "Anonymous" if is_c_anon else (c_name if c_name else "Anonymous")
+                        add_contribution(final_name, "提交待審核數據", is_c_anon)
                         
-                        st.success(f"✅ 成功打包！已記錄來自 {final_contributor_name} 的正式貢獻。")
-                        st.balloons()
-                        st.cache_data.clear()
+                        st.success(f"✅ 數據已成功隔離！待管理員核可後，{final_name} 的貢獻將正式列入榮譽榜。")
                     else:
-                        st.error("❌ 解析失敗：文字內容不符合格式規則。")
+                        st.error("❌ 解析失敗，請檢查格式。")
                 except Exception as e:
-                    st.error(f"⚠️ 隔離區解析錯誤：{e}")
-            else:
-                st.warning("⚠️ 請輸入內容後再提交。")
+                    st.error(f"⚠️ 隔離區系統錯誤：{e}")
 
+        # --- 管理員專區 (僅在本地開發或特定條件下顯示) ---
         st.divider()
-
-        # --- 子區塊 B：散裝許願池 (隔離區 2) ---
-        st.subheader("🎯 零散單字許願")
-        st.write("如果您沒有格式化資料，只想單純提交想學的單字，請使用下方區域：")
-        wish_word_raw = st.text_input("輸入您希望新增的單字（可多個，用逗號隔開）", key="wish_factory")
-        
-        if st.button("📝 提交至許願清單"):
-            if wish_word_raw:
-                final_name = "Anonymous" if is_c_anon else (c_name if c_name else "Anonymous")
-                with open(WISH_FILE, "a", encoding="utf-8") as f:
-                    f.write(f"[{datetime.now().strftime('%Y-%m-%d')}] {final_name}: {wish_word_raw}\n")
-                st.success("願望已隔離儲存至 wish_list.txt，待管理員後續處理！")
+        if st.checkbox("🔓 顯示管理員審核面板"):
+            st.subheader("🛡️ 審核隔離區數據")
+            pending_list = load_json(PENDING_FILE, [])
+            if pending_list:
+                st.json(pending_list)
+                if st.button("✅ 全部核可並合併至正式資料庫"):
+                    main_data = load_data()
+                    main_data.extend(pending_list)
+                    save_data(main_data)
+                    save_json(PENDING_FILE, []) # 清空隔離區
+                    st.success("🎉 數據已正式發佈！")
+                    st.rerun()
             else:
-                st.warning("⚠️ 請輸入單字名稱。")
+                st.write("目前隔離區空空如也。")
 
+    render_section("⚙️ 數據管理與安全隔離", show_factory)
     render_section("⚙️ 數據管理與隔離區", show_factory)
 elif mode == "✍️ 學習測驗":
     st.title("✍️ 詞根解碼測驗")
