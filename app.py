@@ -2,7 +2,7 @@ import streamlit as st
 import json
 import os
 from datetime import datetime
-
+import re
 # --- 基礎設定與版本 ---
 VERSION = "v1.3.0 (2024.01.16)"
 DB_FILE = 'etymon_database.json'
@@ -42,7 +42,64 @@ def add_contribution(name, deed, is_anon):
             "date": datetime.now().strftime('%Y-%m-%d')
         })
     save_json(CONTRIB_FILE, contributors)
+import re
 
+# --- 數據解析引擎---
+def parse_text_to_json(raw_text):
+    new_data = []
+    # 根據「...」類來切分大類
+    categories = re.split(r'「(.+?)」類', raw_text)
+    for i in range(1, len(categories), 2):
+        cat_name = categories[i]
+        cat_body = categories[i+1]
+        cat_obj = {"category": cat_name, "root_groups": []}
+        
+        # 尋找詞根區塊
+        root_blocks = re.split(r'\n(?=-)', cat_body)
+        for block in root_blocks:
+            # 修改正規表達式以支援你的格式：-字根- (解釋)
+            root_info = re.search(r'-([\w/ \-]+)-\s*[\(（](.+?)[\)）]', block)
+            if root_info:
+                group = {
+                    "roots": [r.strip() for r in root_info.group(1).split('/')],
+                    "meaning": root_info.group(2).strip(),
+                    "vocabulary": []
+                }
+                # 尋找單詞及其拆解：單詞 ( (根)(義) + (根)(義) = 含義 )
+                words = re.findall(r'(\w+)\s*[\(（](.+?)[\)）]', block)
+                for w_name, w_logic in words:
+                    # 分離邏輯與含義 (以 = 分割)
+                    if "=" in w_logic:
+                        parts = w_logic.split('=')
+                        logic_part = parts[0].strip()
+                        def_part = parts[1].strip()
+                    else:
+                        logic_part = w_logic
+                        def_part = "點擊查看詳情"
+                        
+                    group["vocabulary"].append({
+                        "word": w_name.strip(),
+                        "breakdown": logic_part,
+                        "definition": def_part
+                    })
+                if group["vocabulary"]:
+                    cat_obj["root_groups"].append(group)
+        new_data.append(cat_obj)
+    return new_data
+
+# --- 讀取資料庫 (確保在頁面載入時執行) ---
+def load_data():
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+def save_data(data):
+    with open(DB_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
+# 重要：在主程式執行前載入數據
+data = load_data()
 # --- 模組化區塊模組 ---
 def render_section(title, content_func):
     with st.container():
