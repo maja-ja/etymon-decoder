@@ -1,1 +1,30 @@
-[]
+[
+    {
+        "category": "心血管(Cardiovascular)",
+        "root_groups": [
+            {
+                "roots": [
+                    "cardi"
+                ],
+                "meaning": "心臟",
+                "vocabulary": [
+                    {
+                        "word": "Cardiology",
+                        "breakdown": "cardi[心臟] + logy[學科]",
+                        "definition": "心臟內科學"
+                    },
+                    {
+                        "word": "Tachycardia",
+                        "breakdown": "tachy[快速] + cardia[心臟狀態]",
+                        "definition": "心跳過速"
+                    },
+                    {
+                        "word": "Cardiomegaly",
+                        "breakdown": "cardio[心臟] + megaly[擴大]",
+                        "definition": "心臟肥大"
+                    }
+                ]
+            }
+        ]
+    }
+]
