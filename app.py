@@ -208,32 +208,46 @@ elif mode == "⚙️ 數據管理":
 elif mode == "✍️ 學習測驗":
     st.title("✍️ 詞根解碼測驗")
     st.info("模式已就緒，請開始挑戰。")
+    
+    # --- 重要：先定義並填充 all_words ---
     all_words = []
-    for cat in data:
-        for group in cat['root_groups']:
-            for v in group['vocabulary']:
-                all_words.append({**v, "root_meaning": group['meaning']}) #
+    if data:
+        for cat in data:
+            for group in cat['root_groups']:
+                for v in group['vocabulary']:
+                    # 這裡加入 root_meaning 方便測驗時提示
+                    all_words.append({**v, "root_meaning": group['meaning']})
 
-    if 'q' not in st.session_state:
-        st.session_state.q = random.choice(all_words)
-        st.session_state.show = False
-    q = st.session_state.q
-    st.subheader(f"單字：:blue[{q['word']}]")
-    
-    ans_type = st.radio("你想猜什麼？", ["中文含義", "拆解邏輯"])
-    user_ans = st.text_input("輸入答案：")
-    
-    if st.button("查看答案"):
-        st.session_state.show = True
-    
-    if st.session_state.show:
-        truth = q['definition'] if ans_type == "中文含義" else q['breakdown']
-        st.info(f"正確答案：{truth}")
-        if st.button("下一題"):
+    # --- 防呆檢查：如果資料庫完全沒單字 ---
+    if not all_words:
+        st.warning("⚠️ 資料庫目前沒有單字，請先到「數據管理」匯入資料。")
+    else:
+        # 確保 random 模組已載入 (import random)
+        if 'q' not in st.session_state:
             st.session_state.q = random.choice(all_words)
             st.session_state.show = False
-            st.rerun()
-
+            
+        q = st.session_state.q
+        st.subheader(f"單字：:blue[{q['word']}]")
+        st.write(f"提示（詞根含義）：{q['root_meaning']}")
+        
+        ans_type = st.radio("你想猜什麼？", ["中文含義", "拆解邏輯"])
+        user_ans = st.text_input("輸入你的答案：")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("查看答案"):
+                st.session_state.show = True
+        
+        if st.session_state.show:
+            truth = q['definition'] if ans_type == "中文含義" else q['breakdown']
+            st.success(f"正確答案：{truth}")
+            
+            with col2:
+                if st.button("下一題"):
+                    st.session_state.q = random.choice(all_words)
+                    st.session_state.show = False
+                    st.rerun()
 elif mode == "🏆 榮譽榜":
     def show_contributors():
         st.write("感謝以下夥伴對「詞根宇宙」的貢獻與熱情：")
