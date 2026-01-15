@@ -117,7 +117,7 @@ st.set_page_config(page_title="詞根宇宙：解碼導航", layout="wide")
 # --- 側邊欄 ---
 st.sidebar.title("🚀 詞根宇宙")
 st.sidebar.caption(f"當前版本：{VERSION}")
-mode = st.sidebar.radio("導航選單", ["🔍 導覽解碼", "✍️ 學習測驗", "⚙️ 數據管理", "🏆 榮譽榜", "🤝 合作招募"])
+mode = st.sidebar.radio("導航選單", ["🔍 導覽解碼", "✍️ 學習測驗", "⚙️ 數據管理", "🤝 合作招募"])
 
 # 側邊欄：許願池 (同步至 GitHub)
 st.sidebar.markdown("---")
@@ -216,9 +216,6 @@ elif mode == "✍️ 學習測驗":
                 st.session_state.q = random.choice(all_words)
                 st.session_state.show = False
                 st.rerun()
-
-elif mode == "🏆 榮譽榜":
-    render_section("協作者榮譽榜", lambda: st.table(load_json(CONTRIB_FILE, [])))
 
 elif mode == "🤝 合作招募":
     render_section("合作招募中心", lambda: st.info("聯繫方式：私訊 Instagram/Threads 或寄信至 kadowsella@gmail.com"))
