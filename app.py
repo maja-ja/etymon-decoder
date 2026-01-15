@@ -171,7 +171,7 @@ if mode == "🔍 導覽解碼":
 
 elif mode == "⚙️ 數據管理":
     def show_factory():
-        st.info("📦 此處提交的正式數據將先進入 **pending_data.json** 隔離區。")
+        st.info("📦 此處提交的正式數據將先進入隔離區。")
         
         hint = """「(名稱1)」類
 -(字根a)-(解釋)
