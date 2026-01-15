@@ -170,42 +170,62 @@ if mode == "🔍 導覽解碼":
     render_section("🔎 導覽解碼系統", show_search)
 elif mode == "⚙️ 數據管理":
     def show_factory():
-        st.write("將 AI 產出的格式貼上以自動打包。")
-        raw_input = st.text_area("數據貼上區", height=200)
-        c_name = st.text_input("貢獻者名稱")
-        c_deed = st.text_input("本次事蹟 (如：新增動作類詞根)")
-        is_c_anon = st.checkbox("我希望匿名貢獻")
+        # --- 子區塊 A：格式化數據提交 (隔離區 1) ---
+        st.subheader("🛠️ 格式化數據匯入")
+        with st.expander("📌 點擊查看提交格式範例 (請嚴格遵守)", expanded=False):
+            st.code("""
+「（類別名稱）」類
+-字根-（解釋/解釋）
+單詞（（字根）（義）+（字根）（義）= 中文含義）
+            """, language="text")
         
-        if st.button("🚀 開始打包並記錄貢獻"):
+        raw_input = st.text_area("請貼入具格式之文字", height=200, placeholder="例如：\n「動作」類\n-fac- (做)\nFactory ((fac)(做)+(tory)(場所)=工廠)")
+        
+        c_name = st.text_input("貢獻者名稱", placeholder="留下大名或勾選匿名")
+        c_deed = st.text_input("本次事蹟", placeholder="例如：新增了 5 個醫學詞根")
+        is_c_anon = st.checkbox("我希望匿名貢獻")
+
+        if st.button("🚀 執行自動化打包"):
             if raw_input:
-                # 1. 執行數據解析 (將文字轉為結構化 JSON)
                 try:
                     new_parsed_data = parse_text_to_json(raw_input)
-                    
                     if new_parsed_data:
-                        # 2. 儲存至資料庫
-                        # 這裡建議採取「附加」而非覆蓋，或是讀取現有的再合併
+                        # 儲存邏輯
                         existing_data = load_data()
-                        # 簡易合併邏輯：將新解析的類別加入舊數據中
                         existing_data.extend(new_parsed_data)
                         save_data(existing_data)
                         
-                        # 3. 處理協作者名稱與記錄貢獻
-                        # 如果勾選匿名，強行將名稱設為 Anonymous
+                        # 貢獻紀錄
                         final_contributor_name = "Anonymous" if is_c_anon else (c_name if c_name else "Anonymous")
-                        
                         add_contribution(final_contributor_name, c_deed, is_c_anon)
                         
-                        st.success(f"✅ 成功打包！已記錄來自 {final_contributor_name} 的貢獻。")
-                        st.balloons() # 慶祝成功
-                        st.cache_data.clear() # 清除快取以顯示最新搜尋結果
+                        st.success(f"✅ 成功打包！已記錄來自 {final_contributor_name} 的正式貢獻。")
+                        st.balloons()
+                        st.cache_data.clear()
                     else:
-                        st.error("❌ 解析失敗：請檢查貼上的文字格式是否符合規範。")
+                        st.error("❌ 解析失敗：文字內容不符合格式規則。")
                 except Exception as e:
-                    st.error(f"⚠️ 解析過程中發生錯誤：{e}")
+                    st.error(f"⚠️ 隔離區解析錯誤：{e}")
             else:
-                st.warning("⚠️ 請先在上方貼入單字數據文字。")
-    render_section("⚙️ 數據工廠", show_factory)
+                st.warning("⚠️ 請輸入內容後再提交。")
+
+        st.divider()
+
+        # --- 子區塊 B：散裝許願池 (隔離區 2) ---
+        st.subheader("🎯 零散單字許願")
+        st.write("如果您沒有格式化資料，只想單純提交想學的單字，請使用下方區域：")
+        wish_word_raw = st.text_input("輸入您希望新增的單字（可多個，用逗號隔開）", key="wish_factory")
+        
+        if st.button("📝 提交至許願清單"):
+            if wish_word_raw:
+                final_name = "Anonymous" if is_c_anon else (c_name if c_name else "Anonymous")
+                with open(WISH_FILE, "a", encoding="utf-8") as f:
+                    f.write(f"[{datetime.now().strftime('%Y-%m-%d')}] {final_name}: {wish_word_raw}\n")
+                st.success("願望已隔離儲存至 wish_list.txt，待管理員後續處理！")
+            else:
+                st.warning("⚠️ 請輸入單字名稱。")
+
+    render_section("⚙️ 數據管理與隔離區", show_factory)
 elif mode == "✍️ 學習測驗":
     st.title("✍️ 詞根解碼測驗")
     st.info("模式已就緒，請開始挑戰。")
