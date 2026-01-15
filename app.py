@@ -49,46 +49,48 @@ import re
 # --- 數據解析引擎---
 def parse_text_to_json(raw_text):
     new_data = []
-    # 根據「...」類來切分大類
-    categories = re.split(r'「(.+?)」類', raw_text)
+    # 使用「」或 " " 作為類別切分點
+    categories = re.split(r'["「](.+?)["」]類', raw_text)
+    
     for i in range(1, len(categories), 2):
-        cat_name = categories[i]
+        cat_name = categories[i].strip()
         cat_body = categories[i+1]
         cat_obj = {"category": cat_name, "root_groups": []}
         
-        # 尋找詞根區塊
+        # 尋找詞根區塊（以 -字根- 開頭）
         root_blocks = re.split(r'\n(?=-)', cat_body)
         for block in root_blocks:
-            # 修改正規表達式以支援你的格式：-字根- (解釋)
-            root_info = re.search(r'-([\w/ \-]+)-\s*[\(（](.+?)[\)）]', block)
+            # 匹配 -root- (meaning)
+            root_info = re.search(r'-([\w/ \-]+)-\s*\((.+?)\)', block)
             if root_info:
                 group = {
                     "roots": [r.strip() for r in root_info.group(1).split('/')],
                     "meaning": root_info.group(2).strip(),
                     "vocabulary": []
                 }
-                # 尋找單詞及其拆解：單詞 ( (根)(義) + (根)(義) = 含義 )
-                words = re.findall(r'(\w+)\s*[\(（](.+?)[\)）]', block)
-                for w_name, w_logic in words:
-                    # 分離邏輯與含義 (以 = 分割)
+                
+                # 匹配：單詞 ( (根)(義)+(根)(義)=含義 )
+                # 使用非貪婪匹配捕捉括號內的複雜邏輯
+                word_matches = re.findall(r'(\w+)\s*\((.+?)\)', block)
+                for w_name, w_logic in word_matches:
                     if "=" in w_logic:
-                        parts = w_logic.split('=')
-                        logic_part = parts[0].strip()
-                        def_part = parts[1].strip()
+                        logic_part, def_part = w_logic.split('=', 1)
                     else:
-                        logic_part = w_logic
-                        def_part = "點擊查看詳情"
+                        logic_part, def_part = w_logic, "待審核含義"
                         
                     group["vocabulary"].append({
                         "word": w_name.strip(),
-                        "breakdown": logic_part,
-                        "definition": def_part
+                        "breakdown": logic_part.strip(),
+                        "definition": def_part.strip()
                     })
+                
                 if group["vocabulary"]:
                     cat_obj["root_groups"].append(group)
-        new_data.append(cat_obj)
+        
+        if cat_obj["root_groups"]:
+            new_data.append(cat_obj)
+            
     return new_data
-
 # --- 讀取資料庫 (確保在頁面載入時執行) ---
 def load_data():
     if os.path.exists(DB_FILE):
@@ -158,63 +160,56 @@ if mode == "🔍 導覽解碼":
 
 elif mode == "⚙️ 數據管理":
     def show_factory():
-        # --- 子區塊 A：格式化數據提交 (進入待審核區) ---
         st.subheader("🛠️ 格式化數據匯入 (待審核隔離區)")
-        st.info("💡 此處提交的數據將存入「待處理檔案」，經管理員核可後才會更新至正式資料庫。")
         
-        with st.expander("📌 點擊查看正確提交格式範例", expanded=False):
-            st.code("""
-「（名稱）」類
--字根-（解釋/解釋）
-單詞（（字根）（義）+（字根）（義）= 中文含義）
-            """, language="text")
+        # 1. 格式提示區
+        format_hint = """「(名稱1)」類
+-字根a-(解釋1/解釋2)
+單詞1((字根1)(解釋)+(字根2)(解釋)=含義)
+
+「(名稱2)」類
+-字根x-(解釋)
+單詞2((字根3)(解釋)+(字根4)(解釋)=含義)"""
+
+        with st.expander("📌 查看標準輸入格式（支援多類別）", expanded=True):
+            st.code(format_hint, language="text")
+            st.caption("注意：系統會自動將全形括號轉為半形，請放心貼上。")
+
+        # 2. 輸入區
+        raw_input = st.text_area(
+            "請貼入具格式之文字：", 
+            height=300, 
+            placeholder=format_hint
+        )
         
-        raw_input = st.text_area("請貼入具格式之文字", height=200, placeholder="例如：\n「動作」類\n-fac- (做)\nFactory ((fac)(做)+(tory)(場所)=工廠)")
-        
-        c_name = st.text_input("貢獻者名稱", placeholder="留下大名或勾選匿名", key="factory_name")
-        c_deed = st.text_input("本次事蹟", placeholder="例如：新增了 5 個醫學詞根", key="factory_deed")
+        c_name = st.text_input("貢獻者名稱", key="factory_name")
+        c_deed = st.text_input("本次事蹟", key="factory_deed")
         is_c_anon = st.checkbox("我希望匿名貢獻", key="factory_anon")
 
         if st.button("🚀 提交至待處理區"):
             if raw_input:
                 try:
-                    # 1. 執行數據解析
-                    new_parsed_data = parse_text_to_json(raw_input)
+                    # 先進行符號統一化（全形轉半形）
+                    cleaned_input = raw_input.replace('（', '(').replace('）', ')').replace('－', '-').replace('「', '"').replace('」', '"')
+                    
+                    new_parsed_data = parse_text_to_json(cleaned_input)
                     
                     if new_parsed_data:
-                        # 2. 存入隔離檔案 (PENDING_FILE)
-                        # 先讀取舊的待處理數據
                         pending_data = load_json(PENDING_FILE, [])
                         pending_data.extend(new_parsed_data)
                         save_json(PENDING_FILE, pending_data)
                         
-                        # 3. 記錄貢獻 (仍計入榮譽榜)
-                        final_contributor_name = "Anonymous" if is_c_anon else (c_name if c_name else "Anonymous")
-                        add_contribution(final_contributor_name, c_deed, is_c_anon)
+                        final_name = "Anonymous" if is_c_anon else (c_name if c_name else "Anonymous")
+                        add_contribution(final_name, c_deed, is_c_anon)
                         
-                        st.success(f"✅ 已成功隔離儲存至 {PENDING_FILE}！")
+                        st.success(f"✅ 已成功隔離儲存 {len(new_parsed_data)} 個類別至待處理區！")
                         st.balloons()
                     else:
-                        st.error("❌ 解析失敗：文字格式不完全正確。")
+                        st.error("❌ 解析失敗：請檢查類別標籤「」與字根格式 - - 是否正確。")
                 except Exception as e:
-                    st.error(f"⚠️ 隔離區解析錯誤：{e}")
+                    st.error(f"⚠️ 解析錯誤：{e}")
             else:
-                st.warning("⚠️ 請輸入內容後再提交。")
-
-        st.divider()
-
-        # --- 子區塊 B：散裝許願池 (進入許願隔離區) ---
-        st.subheader("🎯 零散單字許願")
-        wish_word_raw = st.text_input("輸入您希望新增的單字（用逗號隔開）", key="wish_factory_input")
-        
-        if st.button("📝 提交至許願清單"):
-            if wish_word_raw:
-                final_name = "Anonymous" if is_c_anon else (c_name if c_name else "Anonymous")
-                with open(WISH_FILE, "a", encoding="utf-8") as f:
-                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] {final_name}: {wish_word_raw}\n")
-                st.success(f"願望已安全隔離至 {WISH_FILE}！")
-            else:
-                st.warning("⚠️ 請輸入單字名稱。")
+                st.warning("⚠️ 請輸入內容。")
 
     render_section("⚙️ 數據管理與雙重隔離", show_factory)
 elif mode == "✍️ 學習測驗":
