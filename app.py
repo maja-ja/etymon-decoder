@@ -76,57 +76,40 @@ if st.sidebar.button("提交需求"):
 
 if mode == "🔍 導覽解碼":
     def show_search():
-        st.write("🔍 輸入單字或字根，立即解析單字基因。")
+        # 告訴程式使用全域的 data 變數
+        global data 
         
-        # 搜尋輸入框
-        query = st.text_input("搜尋關鍵字...", placeholder="例如: dict, cap, factory...", label_visibility="collapsed")
+        st.write("🔍 輸入單字或字根，立即解析單字基因。")
+        query = st.text_input("搜尋關鍵字...", placeholder="例如: dict, cap...", label_visibility="collapsed")
         
         if query:
             q = query.lower().strip()
             found = False
             
-            # 遍歷資料庫進行搜尋
-            for cat in data:
-                for group in cat['root_groups']:
-                    # 檢查詞根是否匹配
-                    root_match = any(q in r.lower() for r in group['roots'])
-                    # 檢查單字是否匹配
-                    matched_vocabulary = [v for v in group['vocabulary'] if q in v['word'].lower()]
-                    
-                    if root_match or matched_vocabulary:
-                        found = True
-                        # 顯示詞根標題區
-                        st.markdown(f"#### 🧬 詞根家族：`{'/'.join(group['roots'])}` ({group['meaning']})")
-                        
-                        # 使用 columns 或 container 顯示單字卡片
-                        for v in group['vocabulary']:
-                            # 如果是搜尋到的單字，用 success 顏色標註，其餘用普通的
-                            is_target = q in v['word'].lower()
-                            
-                            with st.expander(f"{'⭐ ' if is_target else ''}{v['word']}", expanded=is_target):
-                                col1, col2 = st.columns([2, 1])
-                                with col1:
-                                    st.markdown(f"**拆解邏輯：**")
-                                    # 這裡會呈現您要求的「(根)(義)+(根)(義)」格式
-                                    st.code(v['breakdown'], language="text")
-                                with col2:
-                                    st.markdown(f"**中文含義：**")
-                                    st.info(v['definition'])
-                        st.divider()
-            
-            if not found:
-                st.warning(f"找不到與 '{q}' 相關的單字或詞根。")
-        else:
-            # 未搜尋時，顯示目前的數據統計或提示
-            st.info("💡 提示：您可以輸入單字的一部分（如 'port'）來查看所有相關的單字家族。")
-            
-            # 可選：預設顯示最新加入的 1 個類別
+            # 確保 data 不是空的才執行
             if data:
-                st.subheader(f"📖 本週精選：{data[0]['category']}")
-                st.caption("從側邊欄切換類別以瀏覽完整地圖")
+                for cat in data:
+                    for group in cat['root_groups']:
+                        root_match = any(q in r.lower() for r in group['roots'])
+                        matched_vocabulary = [v for v in group['vocabulary'] if q in v['word'].lower()]
+                        
+                        if root_match or matched_vocabulary:
+                            found = True
+                            st.markdown(f"#### 🧬 詞根家族：`{'/'.join(group['roots'])}` ({group['meaning']})")
+                            for v in group['vocabulary']:
+                                is_target = q in v['word'].lower()
+                                with st.expander(f"{'⭐ ' if is_target else ''}{v['word']}", expanded=is_target):
+                                    st.write(f"**拆解：** `{v['breakdown']}`")
+                                    st.write(f"**含義：** {v['definition']}")
+                
+                if not found:
+                    st.warning(f"找不到與 '{q}' 相關的結果。")
+            else:
+                st.error("資料庫目前是空的，請先到數據管理新增資料。")
+        else:
+            st.info("💡 提示：輸入單字的一部分來查看相關家族。")
 
     render_section("🔎 導覽解碼系統", show_search)
-
 elif mode == "⚙️ 數據管理":
     def show_factory():
         st.write("將 AI 產出的格式貼上以自動打包。")
