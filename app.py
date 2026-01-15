@@ -9,6 +9,7 @@ VERSION = "v1.3.0 (2024.01.16)"
 DB_FILE = 'etymon_database.json'
 CONTRIB_FILE = 'contributors.json'
 WISH_FILE = 'wish_list.txt'
+PENDING_FILE = 'pending_review.json'
 
 # --- 數據處理函式 ---
 def load_json(file_path, default_val):
@@ -153,8 +154,7 @@ if mode == "🔍 導覽解碼":
             st.info("💡 提示：輸入單字的一部分來查看相關家族。")
 
     render_section("🔎 導覽解碼系統", show_search)
-# 新增隔離區檔案路徑
-PENDING_FILE = 'pending_review.json'
+
 
 elif mode == "⚙️ 數據管理":
     def show_factory():
