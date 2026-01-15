@@ -115,21 +115,6 @@ st.set_page_config(page_title="詞根宇宙：解碼導航", layout="wide")
 st.sidebar.title("🚀 詞根宇宙")
 st.sidebar.caption(f"當前版本：{VERSION}")
 mode = st.sidebar.radio("導航選單", ["🔍 導覽解碼", "✍️ 學習測驗", "⚙️ 數據管理", "🏆 榮譽榜", "🤝 合作招募"])
-
-# 許願池
-st.sidebar.markdown("---")
-st.sidebar.subheader("🎯 希望的單字")
-wish_name = st.sidebar.text_input("您的稱呼 (可留空)", key="wish_name")
-wish_word = st.sidebar.text_input("想要新增的單字", key="wish_word")
-is_wish_anon = st.sidebar.checkbox("匿名上傳", key="wish_anon")
-
-if st.sidebar.button("提交需求"):
-    if wish_word:
-        final_name = "Anonymous" if is_wish_anon else (wish_name if wish_name else "Anonymous")
-        with open(WISH_FILE, "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().strftime('%Y-%m-%d')}] {final_name}: {wish_word}\n")
-        st.sidebar.success("願望已收錄！")
-
 # --- 主介面邏輯 ---
 
 if mode == "🔍 導覽解碼":
