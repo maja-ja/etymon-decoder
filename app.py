@@ -1,118 +1,134 @@
 import streamlit as st
 import json
-import random
 import os
-import re
 from datetime import datetime
 
-# --- 基礎設定 ---
+# --- 基礎設定與版本 ---
+VERSION = "v1.3.0 (2024.01.16)"
 DB_FILE = 'etymon_database.json'
+CONTRIB_FILE = 'contributors.json'
 WISH_FILE = 'wish_list.txt'
-VERSION = "v1.2.0 (2024.01.16)"
 
-# --- 1. 數據處理功能 ---
-def load_data():
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, 'r', encoding='utf-8') as f:
+# --- 數據處理函式 ---
+def load_json(file_path, default_val):
+    if os.path.exists(file_path):
+        with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
-    return []
+    return default_val
 
-def save_data(new_data):
-    with open(DB_FILE, 'w', encoding='utf-8') as f:
-        json.dump(new_data, f, indent=4, ensure_ascii=False)
+def save_json(file_path, data):
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
-def parse_text_to_json(raw_text):
-    """解析自定義格式為結構化 JSON"""
-    new_data = []
-    categories = re.split(r'「(.+?)」類', raw_text)
-    for i in range(1, len(categories), 2):
-        cat_name = categories[i]
-        cat_body = categories[i+1]
-        cat_obj = {"category": cat_name, "root_groups": []}
-        root_blocks = re.split(r'\n(?=-)', cat_body)
-        for block in root_blocks:
-            root_info = re.search(r'-([\w/ \-]+)-\s*[\(（](.+?)[\)）]', block)
-            if root_info:
-                group = {
-                    "roots": [r.strip() for r in root_info.group(1).split('/')],
-                    "meaning": root_info.group(2).strip(),
-                    "vocabulary": []
-                }
-                # 支援多個括號組成的複雜拆解格式
-                words = re.findall(r'(\w+)\s*[\(（](.+?)[\)）]', block)
-                for w_name, w_logic in words:
-                    # 判斷是否為真正的拆解公式（含有 = 或多個括號組合）
-                    if "=" in w_logic or "+" in w_logic:
-                        parts = w_logic.split('=')
-                        logic = parts[0].strip()
-                        def_text = parts[1].strip() if len(parts) > 1 else "待定義"
-                        group["vocabulary"].append({"word": w_name, "breakdown": logic, "definition": def_text})
-                if group["vocabulary"]:
-                    cat_obj["root_groups"].append(group)
-        new_data.append(cat_obj)
-    return new_data
+def add_contribution(name, deed, is_anon):
+    """更新協作者名單"""
+    contributors = load_json(CONTRIB_FILE, [])
+    display_name = "Anonymous" if is_anon else name
+    
+    # 檢查是否已存在
+    found = False
+    for c in contributors:
+        if c['name'] == display_name and not is_anon:
+            c['count'] += 1
+            c['last_deed'] = deed
+            found = True
+            break
+    
+    if not found or is_anon:
+        contributors.append({
+            "name": display_name,
+            "deed": deed,
+            "count": 1,
+            "date": datetime.now().strftime('%Y-%m-%d')
+        })
+    save_json(CONTRIB_FILE, contributors)
 
-# --- 2. 模組化區塊 (方便未來擴充) ---
+# --- 模組化區塊模組 ---
 def render_section(title, content_func):
-    """新增區塊模組：統一標題樣式與容器內容"""
     with st.container():
-        st.markdown(f"### 🛡️ {title}")
+        st.markdown(f"### {title}")
         content_func()
         st.divider()
 
-# --- 3. 介面設定 ---
+# --- 頁面配置 ---
 st.set_page_config(page_title="詞根宇宙：解碼導航", layout="wide")
-data = load_data()
 
-# 側邊欄：導航與版本資訊
-st.sidebar.title("🚀 詞根宇宙導航")
-st.sidebar.caption(f"版本號：{VERSION}") # 新增版本號提示
+# --- 側邊欄 ---
+st.sidebar.title("🚀 詞根宇宙")
+st.sidebar.caption(f"當前版本：{VERSION}")
+mode = st.sidebar.radio("導航選單", ["🔍 導覽解碼", "✍️ 學習測驗", "⚙️ 數據管理", "🏆 榮譽榜", "🤝 合作招募"])
+
+# 許願池
 st.sidebar.markdown("---")
+st.sidebar.subheader("🎯 希望的單字")
+wish_name = st.sidebar.text_input("您的稱呼 (可留空)", key="wish_name")
+wish_word = st.sidebar.text_input("想要新增的單字", key="wish_word")
+is_wish_anon = st.sidebar.checkbox("匿名上傳", key="wish_anon")
 
-mode = st.sidebar.radio("切換模式：", ["🔍 導覽解碼", "✍️ 學習測驗", "⚙️ 數據管理", "🤝 合作招募"])
-
-# 側邊欄：新增「希望的單字」輸入框
-st.sidebar.markdown("---")
-st.sidebar.subheader("🎯 許願池")
-wish_word = st.sidebar.text_input("輸入您希望新增的單字：", placeholder="例如: Metaphor")
-if st.sidebar.button("提交願望"):
+if st.sidebar.button("提交需求"):
     if wish_word:
+        final_name = "Anonymous" if is_wish_anon else (wish_name if wish_name else "Anonymous")
         with open(WISH_FILE, "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] {wish_word}\n")
-        st.sidebar.success("願望已記錄！")
+            f.write(f"[{datetime.now().strftime('%Y-%m-%d')}] {final_name}: {wish_word}\n")
+        st.sidebar.success("願望已收錄！")
 
-# --- 4. 功能邏輯 ---
+# --- 主介面邏輯 ---
 
 if mode == "🔍 導覽解碼":
-    def search_content():
-        query = st.text_input("🔍 搜尋單字或詞根...")
-        if query:
-            q = query.lower()
-            for cat in data:
-                for group in cat['root_groups']:
-                    match = [v for v in group['vocabulary'] if q in v['word'].lower()]
-                    if any(q in r.lower() for r in group['roots']) or match:
-                        st.write(f"#### 詞根: `{' / '.join(group['roots'])}` ({group['meaning']})")
-                        for v in group['vocabulary']:
-                            st.write(f"**{v['word']}** | `{v['breakdown']}` | {v['definition']}")
-    render_section("導覽解碼系統", search_content)
-
-elif mode == "✍️ 學習測驗":
-    def quiz_content():
-        st.write("挑戰單字結構與含義記憶。")
-        # (保留之前的測驗邏輯)
-    render_section("詞根解碼挑戰", quiz_content)
+    def show_search():
+        st.write("輸入字首或字根，解析單字基因。")
+        # 搜尋邏輯代碼...
+    render_section("🔎 導覽解碼系統", show_search)
 
 elif mode == "⚙️ 數據管理":
-    def management_content():
-        st.markdown("將單字以指定格式貼上，系統將自動打包。")
-        raw_text = st.text_area("資料匯入區：", height=250, placeholder="「（名稱）」類\n-字根a- (解釋)\n單詞 ( (根)(義) + (根)(義) = 含義 )")
-        if st.button("🚀 執行自動化打包"):
-            if raw_text:
-                parsed = parse_text_to_json(raw_text)
-                save_data(parsed)
-                st.success("數據已成功儲存！")
-    render_section("數據工廠", management_content)
+    def show_factory():
+        st.write("將 AI 產出的格式貼上以自動打包。")
+        raw_input = st.text_area("數據貼上區", height=200)
+        c_name = st.text_input("貢獻者名稱")
+        c_deed = st.text_input("本次事蹟 (如：新增動作類詞根)")
+        is_c_anon = st.checkbox("我希望匿名貢獻")
+        
+        if st.button("🚀 開始打包並記錄貢獻"):
+            if raw_input:
+                # 1. 執行數據解析 (將文字轉為結構化 JSON)
+                try:
+                    new_parsed_data = parse_text_to_json(raw_input)
+                    
+                    if new_parsed_data:
+                        # 2. 儲存至資料庫
+                        # 這裡建議採取「附加」而非覆蓋，或是讀取現有的再合併
+                        existing_data = load_data()
+                        # 簡易合併邏輯：將新解析的類別加入舊數據中
+                        existing_data.extend(new_parsed_data)
+                        save_data(existing_data)
+                        
+                        # 3. 處理協作者名稱與記錄貢獻
+                        # 如果勾選匿名，強行將名稱設為 Anonymous
+                        final_contributor_name = "Anonymous" if is_c_anon else (c_name if c_name else "Anonymous")
+                        
+                        add_contribution(final_contributor_name, c_deed, is_c_anon)
+                        
+                        st.success(f"✅ 成功打包！已記錄來自 {final_contributor_name} 的貢獻。")
+                        st.balloons() # 慶祝成功
+                        st.cache_data.clear() # 清除快取以顯示最新搜尋結果
+                    else:
+                        st.error("❌ 解析失敗：請檢查貼上的文字格式是否符合規範。")
+                except Exception as e:
+                    st.error(f"⚠️ 解析過程中發生錯誤：{e}")
+            else:
+                st.warning("⚠️ 請先在上方貼入單字數據文字。")
+    render_section("⚙️ 數據工廠", show_factory)
+
+elif mode == "🏆 榮譽榜":
+    def show_contributors():
+        st.write("感謝以下夥伴對「詞根宇宙」的貢獻與熱情：")
+        contributors = load_json(CONTRIB_FILE, [])
+        if contributors:
+            # 使用表格呈現
+            st.table(contributors)
+        else:
+            st.info("尚無協作者紀錄，歡迎成為第一位！")
+    render_section("🏆 協作者榮譽榜", show_contributors)
 
 elif mode == "🤝 合作招募":
     def recruit_content():
@@ -120,12 +136,13 @@ elif mode == "🤝 合作招募":
         st.info("""
         **招募角色：**
         1. 數據精煉師：協助校對與擴充詞根 JSON 數據。
-        2. UI/UX 顧問：優化 Streamlit 介面體驗。
-        3. 社群推廣大使：將詞根學習邏輯推廣至 IG/Threads。
+        2. 數據代換師：協助轉換至SQLite 或是MySQL。
+        3. UI/UX 顧問：優化 Streamlit 介面體驗。
+        4. 社群推廣大使：將詞根學習邏輯推廣至 IG/Threads。
         
-        **聯繫方式：** 請透過 Instagram 私訊我或寄信至 [您的聯絡信箱]。
+        **聯繫方式：** 請透過 Instagram/Threads 私訊我或寄信至 kadowsella@gmail.com。
         """)
     render_section("合作招募中心", recruit_content) # 新增合作招募中心
 
-# 頁尾資訊
-st.markdown(f"<p style='text-align: center; color: gray;'>詞根宇宙 {VERSION} | 以邏輯解構語言</p>", unsafe_allow_html=True)
+# 頁尾
+st.markdown(f"<center style='color:gray; font-size:0.8em;'>詞根宇宙 {VERSION} | Powered by Streamlit & Gemini</center>", unsafe_allow_html=True)
