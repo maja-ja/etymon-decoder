@@ -4,13 +4,13 @@ import os
 from datetime import datetime
 import re
 import random
+
 # --- 基礎設定與版本 ---
 VERSION = "v1.3.0 (2024.01.16)"
 DB_FILE = 'etymon_database.json'
 CONTRIB_FILE = 'contributors.json'
 WISH_FILE = 'wish_list.txt'
-PENDING_FILE = 'pending_review.json'
-
+PENDING_FILE = 'pending_data.json'
 # --- 數據處理函式 ---
 def load_json(file_path, default_val):
     if os.path.exists(file_path):
@@ -155,22 +155,6 @@ if mode == "🔍 導覽解碼":
 
     render_section("🔎 導覽解碼系統", show_search)
 
-
-這是一個非常明智的數據安全策略。將「未經審核的用戶提交數據」與「正式資料庫」隔離，可以防止格式錯誤直接癱瘓 App 搜尋功能，也能讓你手動審核後再進行合併。
-
-我已經更新了程式碼，現在流程如下：
-
-數據管理：用戶提交的格式化文字會存入 pending_data.json（待處理區）。
-
-許願池：單字願望存入 wish_list.txt（許願區）。
-
-正式資料庫：只有你手動移動後的數據會出現在 etymon_database.json。
-
-app.py 更新後的數據管理區塊
-Python
-
-# --- 新增暫存檔案設定 ---
-PENDING_FILE = 'pending_data.json'
 
 elif mode == "⚙️ 數據管理":
     def show_factory():
