@@ -3,6 +3,7 @@ import json
 import os
 from datetime import datetime
 import re
+import random
 # --- 基礎設定與版本 ---
 VERSION = "v1.3.0 (2024.01.16)"
 DB_FILE = 'etymon_database.json'
