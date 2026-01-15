@@ -76,8 +76,55 @@ if st.sidebar.button("提交需求"):
 
 if mode == "🔍 導覽解碼":
     def show_search():
-        st.write("輸入字首或字根，解析單字基因。")
-        # 搜尋邏輯代碼...
+        st.write("🔍 輸入單字或字根，立即解析單字基因。")
+        
+        # 搜尋輸入框
+        query = st.text_input("搜尋關鍵字...", placeholder="例如: dict, cap, factory...", label_visibility="collapsed")
+        
+        if query:
+            q = query.lower().strip()
+            found = False
+            
+            # 遍歷資料庫進行搜尋
+            for cat in data:
+                for group in cat['root_groups']:
+                    # 檢查詞根是否匹配
+                    root_match = any(q in r.lower() for r in group['roots'])
+                    # 檢查單字是否匹配
+                    matched_vocabulary = [v for v in group['vocabulary'] if q in v['word'].lower()]
+                    
+                    if root_match or matched_vocabulary:
+                        found = True
+                        # 顯示詞根標題區
+                        st.markdown(f"#### 🧬 詞根家族：`{'/'.join(group['roots'])}` ({group['meaning']})")
+                        
+                        # 使用 columns 或 container 顯示單字卡片
+                        for v in group['vocabulary']:
+                            # 如果是搜尋到的單字，用 success 顏色標註，其餘用普通的
+                            is_target = q in v['word'].lower()
+                            
+                            with st.expander(f"{'⭐ ' if is_target else ''}{v['word']}", expanded=is_target):
+                                col1, col2 = st.columns([2, 1])
+                                with col1:
+                                    st.markdown(f"**拆解邏輯：**")
+                                    # 這裡會呈現您要求的「(根)(義)+(根)(義)」格式
+                                    st.code(v['breakdown'], language="text")
+                                with col2:
+                                    st.markdown(f"**中文含義：**")
+                                    st.info(v['definition'])
+                        st.divider()
+            
+            if not found:
+                st.warning(f"找不到與 '{q}' 相關的單字或詞根。")
+        else:
+            # 未搜尋時，顯示目前的數據統計或提示
+            st.info("💡 提示：您可以輸入單字的一部分（如 'port'）來查看所有相關的單字家族。")
+            
+            # 可選：預設顯示最新加入的 1 個類別
+            if data:
+                st.subheader(f"📖 本週精選：{data[0]['category']}")
+                st.caption("從側邊欄切換類別以瀏覽完整地圖")
+
     render_section("🔎 導覽解碼系統", show_search)
 
 elif mode == "⚙️ 數據管理":
