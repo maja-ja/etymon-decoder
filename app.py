@@ -72,14 +72,22 @@ def load_json(file_path, default_val):
 # --- 數據解析引擎 ---
 def parse_text_to_json(raw_text):
     new_data = []
+    # 正規化標點符號
     cleaned = raw_text.replace('（', '(').replace('）', ')').replace('－', '-').replace('「', '"').replace('」', '"')
-    categories = re.split(r'["\'](.+?)["\']類', cleaned)
+    
+    # 1. 切分大類別 (使用更強健的切分方式)
+    categories = re.split(r'"(.+?)"類', cleaned)
+    
     for i in range(1, len(categories), 2):
         cat_name = categories[i].strip()
-        cat_body = categories[i+1]
+        cat_body = categories[i+1].strip()
         cat_obj = {"category": cat_name, "root_groups": []}
+        
+        # 2. 切分字根區塊：以 "-" 開頭的行作為起始
         root_blocks = re.split(r'\n(?=-)', cat_body)
+        
         for block in root_blocks:
+            # 匹配字根與其含義，例如: -uni- / -mon- (一)
             root_info = re.search(r'-([\w/ \-]+)-\s*\((.+?)\)', block)
             if root_info:
                 group = {
@@ -87,18 +95,29 @@ def parse_text_to_json(raw_text):
                     "meaning": root_info.group(2).strip(),
                     "vocabulary": []
                 }
-                word_matches = re.findall(r'(\w+)\s*\((.+?)\)', block)
-                for w_name, w_logic in word_matches:
-                    logic_part, def_part = w_logic.split('=', 1) if "=" in w_logic else (w_logic, "待審核")
+                
+                # 3. 匹配單字行：
+                # 這裡改用 finditer 並放寬括號內的匹配，直到該行結束或最後一個右括號
+                word_matches = re.findall(r'(\w+)\s*\((.+)\)', block)
+                for w_name, w_content in word_matches:
+                    # 處理邏輯與定義：以最後一個等號分割，避免 breakdown 裡面也有等號
+                    if "=" in w_content:
+                        logic_part, def_part = w_content.rsplit('=', 1)
+                    else:
+                        logic_part, def_part = w_content, "待審核"
+                        
                     group["vocabulary"].append({
                         "word": w_name.strip(),
                         "breakdown": logic_part.strip(),
                         "definition": def_part.strip()
                     })
+                
                 if group["vocabulary"]:
                     cat_obj["root_groups"].append(group)
+                    
         if cat_obj["root_groups"]:
             new_data.append(cat_obj)
+            
     return new_data
 
 # 預載數據
