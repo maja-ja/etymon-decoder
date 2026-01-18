@@ -1,9 +1,11 @@
-{
-  "word": "Symphony",
-  "breakdown": "sym (共同) + phon (聲音)",
-  "definition": "交響樂/和聲",
-  "diagnostic_options": [
-    {"word": "Sympathy", "weight": 1.0, "focus": "prefix", "reason": "同綴同源"},
-    {"word": "Symptom", "weight": 0.1, "focus": "visual", "reason": "視覺干擾"}
-  ]
-}
+[
+  {
+    "word": "Symphony",
+    "breakdown": "sym (共同) + phon (聲音)",
+    "definition": "交響樂/和聲",
+    "diagnostic_options": [
+      {"word": "Sympathy", "weight": 1.0, "focus": "prefix", "reason": "同綴同源"},
+      {"word": "Symptom", "weight": 0.1, "focus": "visual", "reason": "視覺干擾"}
+    ]
+  }
+]
