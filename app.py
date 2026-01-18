@@ -241,6 +241,12 @@ sympathy（（sym）（共同）+（pathy）（感情）=同情心）"""
                     
     render_section("數據工廠：詞根解碼投稿", show_factory)
 elif mode == "✍️ 學習測驗":
+    import plotly.graph_objects as go # 記得在最上方 import
+
+    # 初始化認知維度 (若無則設定初始值)
+    if 'ability' not in st.session_state:
+        st.session_state.ability = {"Prefix": 0.5, "Root": 0.5, "Semantics": 0.5}
+
     all_words = []
     for cat in data:
         for group in cat['root_groups']:
@@ -248,27 +254,56 @@ elif mode == "✍️ 學習測驗":
                 all_words.append({**v, "root_meaning": group['meaning']})
 
     if not all_words:
-        st.warning("資料庫暫無內容，請先至數據管理提交數據。")
+        st.warning("資料庫暫無內容...")
     else:
-        if 'q' not in st.session_state:
-            st.session_state.q = random.choice(all_words)
-            st.session_state.show = False
+        # 頁面標題與佈局
+        st.subheader("🧠 深度診斷模式 (Beta)")
         
-        q = st.session_state.q
-        st.subheader(f"挑戰單字：:blue[{q['word']}]")
+        col1, col2 = st.columns([2, 1])
         
-        user_ans = st.text_input("在此寫下你的答案（自由輸入練習）：", key="quiz_answer_input")
-        
-        ans_type = st.radio("測驗類型", ["中文含義", "拆解邏輯"], key="quiz_type_radio")
-        if st.button("查看正確答案", key="quiz_show_btn"): 
-            st.session_state.show = True
-        
-        if st.session_state.show:
-            st.success(f"參考答案：{q['definition'] if ans_type == '中文含義' else q['breakdown']}")
-            if st.button("下一題", key="quiz_next_btn"):
+        with col1:
+            if 'q' not in st.session_state:
                 st.session_state.q = random.choice(all_words)
-                st.session_state.show = False
-                st.rerun()
+                st.session_state.feedback = None
+            
+            q = st.session_state.q
+            st.markdown(f"#### 挑戰單字：:blue[{q['word']}]")
+            st.caption(f"提示：字根意義與「{q['root_meaning']}」有關")
+
+            # --- 模擬模糊選項 (若資料庫尚未升級，先用模擬邏輯生成) ---
+            # 這裡我們展示如果資料庫有 diagnostic_options 時的行為
+            st.write("哪個選項與此單字的「語義距離」最接近？")
+            
+            # 這裡示範 3 個按鈕 (實際開發時應從 JSON 讀取)
+            options = [
+                {"word": q['word'], "weight": 1.0, "focus": "Semantics", "msg": "完美契合！"},
+                {"word": "相似拼寫詞", "weight": 0.2, "focus": "Prefix", "msg": "你可能被前綴迷惑了。"},
+                {"word": "情境相關詞", "weight": 0.6, "focus": "Root", "msg": "直覺不錯，但字根掌握尚待加強。"}
+            ]
+            
+            for opt in options:
+                if st.button(opt['word'], use_container_width=True):
+                    # 更新能力值演算法
+                    focus = opt['focus']
+                    weight = opt['weight']
+                    st.session_state.ability[focus] = max(0.1, min(1.0, st.session_state.ability[focus] + (weight-0.5)*0.1))
+                    st.session_state.feedback = f"**診斷結果：** {opt['msg']} (權重: {weight})"
+
+            if st.session_state.feedback:
+                st.info(st.session_state.feedback)
+                if st.button("下一題"):
+                    st.session_state.q = random.choice(all_words)
+                    st.session_state.feedback = None
+                    st.rerun()
+
+        with col2:
+            st.write("📊 **你的認知指紋**")
+            # 繪製雷達圖
+            categories = list(st.session_state.ability.keys())
+            values = list(st.session_state.ability.values())
+            fig = go.Figure(data=go.Scatterpolar(r=values, theta=categories, fill='toself'))
+            fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 1])), showlegend=False)
+            st.plotly_chart(fig, use_container_width=True)
 
 elif mode == "🤝 合作招募":
     def show_recruit():
