@@ -26,82 +26,44 @@ def get_stats(data):
 def ui_search_page(data, selected_cat):
     st.title("字根導覽")
     
-    # 1. 整理選單資料：根據側邊欄選擇的大類來決定字根清單
+    # 1. 根據大類過濾
     relevant_cats = data if selected_cat == "全部顯示" else [c for c in data if c['category'] == selected_cat]
     
     root_options = []
     root_to_group = {}
-    
     for cat in relevant_cats:
-        for group in cat['root_groups']:
-            # 建立選單標籤：字根 (含義)
+        for group in cat.get('root_groups', []):
             label = f"{' / '.join(group['roots'])} ({group['meaning']})"
             root_options.append(label)
             root_to_group[label] = (cat['category'], group)
     
-    # 2. 字根快選選單 (預設列出全部，除非側邊欄有選大類)
-    selected_root_label = st.selectbox(
-        f"字根選單 (目前範圍: {selected_cat})", 
-        ["顯示全部"] + root_options
-    )
+    # 2. 字根快選
+    selected_root_label = st.selectbox(f"字根選單 ({selected_cat})", ["顯示全部"] + root_options)
     
     st.divider()
 
-    # 3. 核心顯示邏輯
+    # 3. 顯示邏輯 (移除所有 random.choice 相關代碼)
     if selected_root_label == "顯示全部":
-        # 如果選顯示全部，就列出目前範圍內所有的字根與單字
         query = st.text_input("檢索單字", placeholder="在目前範圍內搜尋...").lower().strip()
-        
         for label in root_options:
             cat_name, group = root_to_group[label]
-            
-            # 檢查單字過濾
             matched_v = [v for v in group['vocabulary'] if query in v['word'].lower()] if query else group['vocabulary']
             
             if matched_v:
                 st.markdown(f"### {label}")
                 for v in matched_v:
-                    is_expanded = bool(query) # 有搜尋才展開
-                    with st.expander(f"{v['word']}", expanded=is_expanded):
+                    # 確保 is_expanded 是布林值
+                    with st.expander(f"{v['word']}", expanded=bool(query)):
                         st.write(f"結構: `{v['breakdown']}`")
                         st.write(f"釋義: {v['definition']}")
     else:
-        # 如果選了特定字根，只顯示該組內容
+        # 顯示單一字根組
         cat_name, group = root_to_group[selected_root_label]
         st.subheader(f"分類：{cat_name}")
-        st.info(f"字根：{selected_root_label}")
-        
         for v in group['vocabulary']:
             with st.expander(f"{v['word']}", expanded=False):
                 st.write(f"結構: `{v['breakdown']}`")
                 st.write(f"釋義: {v['definition']}")
-    # 4. 智慧抽題邏輯
-    if 'flash_q' not in st.session_state:
-        # 如果有陌生字，且隨機機率大於 0.5，就從陌生字裡抽
-        if st.session_state.failed_words and random.random() > 0.5:
-            # 從 all_words 找出屬於 failed_words 的完整物件
-            failed_pool = [w for w in all_words if w['word'] in st.session_state.failed_words]
-            if failed_pool:
-                st.session_state.flash_q = random.choice(failed_pool)
-                st.session_state.is_from_failed = True # 標註這是複習題
-            else:
-                st.session_state.flash_q = random.choice(all_words)
-                st.session_state.is_from_failed = False
-        else:
-            st.session_state.flash_q = random.choice(all_words)
-            st.session_state.is_from_failed = False
-        
-        st.session_state.is_flipped = False
-# 頂部工具列：顯示目前範圍與退出按鈕
-    col_t1, col_t2 = st.columns([4, 1])
-    col_t1.caption(f"範圍: {st.session_state.selected_quiz_cat}")
-    
-    # 移除 size="small" 參數，改用標準按鈕
-    if col_t2.button("結束", use_container_width=True):
-        st.session_state.quiz_active = False
-        if 'flash_q' in st.session_state:
-            del st.session_state.flash_q
-        st.rerun()
 def ui_quiz_page(data):
     # 0. 基礎狀態初始化
     if 'failed_words' not in st.session_state:
