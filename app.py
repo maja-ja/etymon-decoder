@@ -133,36 +133,37 @@ def ui_quiz_page(data):
         st.session_state.is_flipped = False
 
     q = st.session_state.flash_q
-    is_review = st.session_state.get('is_review', False)
-    
-    # --- 渲染卡片 ---
-    is_flipped_class = "flipped" if st.session_state.is_flipped else ""
-    
-    # 複習標籤：如果是複習題，顯示紅色小標記
-    review_tag = '<span style="color: #d73a49; font-weight: bold; margin-left: 8px;">• RE-STUDY</span>' if is_review else ""
+    # 建立複習標籤的 HTML
+    if is_review:
+        # 使用淡紅色背景和深紅文字，做出標籤感
+        review_tag = """
+        <span style="
+            background-color: #ffeef0; 
+            color: #d73a49; 
+            padding: 2px 8px; 
+            border-radius: 4px; 
+            font-size: 0.7rem; 
+            font-weight: bold; 
+            margin-left: 10px;
+            border: 1px solid #f9c2c7;
+        ">複習</span>
+        """
+    else:
+        review_tag = ""
 
+    # 在卡片正面渲染
     st.markdown(f"""
-    <style>
-    .flip-card {{ background-color: transparent; width: 100%; height: 350px; perspective: 1000px; }}
-    .flip-card-inner {{ position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d; }}
-    .flipped {{ transform: rotateY(180deg); }}
-    .flip-card-front, .flip-card-back {{ 
-        position: absolute; width: 100%; height: 100%; 
-        backface-visibility: hidden; border-radius: 16px; 
-        display: flex; flex-direction: column; justify-content: center; align-items: center; 
-        background: white; border: 1px solid #e1e4e8; 
-    }}
-    .flip-card-back {{ transform: rotateY(180deg); padding: 40px; }}
-    </style>
     <div class="flip-card">
       <div class="flip-card-inner {is_flipped_class}">
         <div class="flip-card-front">
-          <div style="font-size: 0.75rem; color: #888; letter-spacing: 0.05em;">
-            {q['cat'].upper()}{review_tag}
+          <div style="display: flex; align-items: center; justify-content: center;">
+            <small style="color: #888; letter-spacing: 0.1em;">{q['cat'].upper()}</small>
+            {review_tag}
           </div>
           <h1 style="font-size: 3.2rem; font-weight: 700; margin: 15px 0; color: #1a1a1a;">{q['word']}</h1>
-          <div style="font-size: 0.7rem; color: #ccc; margin-top: 20px;">CLICK TO FLIP</div>
+          <div style="font-size: 0.7rem; color: #ccc; margin-top: 20px;">點擊翻轉</div>
         </div>
+        ...
         <div class="flip-card-back">
           <div style="text-align: left; width: 100%;">
             <div style="font-size: 0.8rem; color: #888; margin-bottom: 4px;">STRUCTURE</div>
