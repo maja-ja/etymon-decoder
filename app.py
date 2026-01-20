@@ -64,6 +64,9 @@ def ui_search_page(data, selected_cat):
             with st.expander(f"{v['word']}", expanded=False):
                 st.write(f"結構: `{v['breakdown']}`")
                 st.write(f"釋義: {v['definition']}")
+import random
+import streamlit as st
+
 def ui_quiz_page(data):
     # 0. 基礎狀態初始化
     if 'failed_words' not in st.session_state:
@@ -81,13 +84,13 @@ def ui_quiz_page(data):
         if st.button("開始練習", use_container_width=True):
             st.session_state.selected_quiz_cat = selected_quiz_cat
             st.session_state.quiz_active = True
+            # 重置題目，確保開始時重新抽題
+            if 'flash_q' in st.session_state: del st.session_state.flash_q
             st.rerun()
         return
 
-    # 2. 練習模式：篩選與抽題
+    # 2. 練習模式：頂部工具欄
     st.title("記憶卡片")
-    
-    # 點擊結束按鈕
     col_t1, col_t2 = st.columns([4, 1])
     col_t1.caption(f"目前範圍: {st.session_state.selected_quiz_cat}")
     if col_t2.button("結束", use_container_width=True):
@@ -95,13 +98,15 @@ def ui_quiz_page(data):
         if 'flash_q' in st.session_state: del st.session_state.flash_q
         st.rerun()
 
-    # 準備題目池
+    # 3. 準備題目池
     if st.session_state.selected_quiz_cat == "全部隨機":
         relevant_data = data
     else:
         relevant_data = [c for c in data if c['category'] == st.session_state.selected_quiz_cat]
 
-    all_words = [{**v, "cat": cat['category']} for cat in relevant_data for group in cat.get('root_groups', []) for v in group.get('vocabulary', [])]
+    all_words = [{**v, "cat": cat['category']} for cat in relevant_data 
+                 for group in cat.get('root_groups', []) 
+                 for v in group.get('vocabulary', [])]
 
     if not all_words:
         st.warning("查無單字。")
@@ -110,64 +115,62 @@ def ui_quiz_page(data):
             st.rerun()
         return
 
+    # 4. 智慧抽題邏輯
     if 'flash_q' not in st.session_state:
-        st.session_state.flash_q = random.choice(all_words)
-        st.session_state.is_flipped = False
-
-    q = st.session_state.flash_q
-    
-    # 1. 智慧抽題邏輯 (50% 機率抽陌生字)
-    if 'flash_q' not in st.session_state:
+        # 預設為非複習
+        st.session_state.is_review = False
+        
+        # 50% 機率挑選陌生字 (如果有的話)
         if st.session_state.failed_words and random.random() > 0.5:
-            # 從當前範圍 (all_words) 中找出屬於陌生清單的字
             failed_pool = [w for w in all_words if w['word'] in st.session_state.failed_words]
             if failed_pool:
                 st.session_state.flash_q = random.choice(failed_pool)
                 st.session_state.is_review = True
             else:
                 st.session_state.flash_q = random.choice(all_words)
-                st.session_state.is_review = False
         else:
             st.session_state.flash_q = random.choice(all_words)
-            st.session_state.is_review = False
+        
         st.session_state.is_flipped = False
 
+    # 5. 抓取當前狀態進行渲染
     q = st.session_state.flash_q
-    # 建立複習標籤的 HTML
-    if is_review:
-        # 使用淡紅色背景和深紅文字，做出標籤感
-        review_tag = """
-        <span style="
-            background-color: #ffeef0; 
-            color: #d73a49; 
-            padding: 2px 8px; 
-            border-radius: 4px; 
-            font-size: 0.7rem; 
-            font-weight: bold; 
-            margin-left: 10px;
-            border: 1px solid #f9c2c7;
-        ">複習</span>
-        """
-    else:
-        review_tag = ""
+    is_review = st.session_state.get('is_review', False)
+    is_flipped_class = "flipped" if st.session_state.is_flipped else ""
 
-    # 在卡片正面渲染
+    # 建立複習標籤 HTML
+    review_tag = """
+    <span style="background-color: #ffeef0; color: #d73a49; padding: 2px 8px; border-radius: 4px; 
+    font-size: 0.7rem; font-weight: bold; margin-left: 10px; border: 1px solid #f9c2c7;">複習</span>
+    """ if is_review else ""
+
+    # 6. 卡片渲染
     st.markdown(f"""
+    <style>
+    .flip-card {{ background-color: transparent; width: 100%; height: 350px; perspective: 1000px; }}
+    .flip-card-inner {{ position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d; }}
+    .flipped {{ transform: rotateY(180deg); }}
+    .flip-card-front, .flip-card-back {{ 
+        position: absolute; width: 100%; height: 100%; backface-visibility: hidden; 
+        border-radius: 16px; display: flex; flex-direction: column; justify-content: center; align-items: center; 
+        background: white; border: 1px solid #e1e4e8; box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }}
+    .flip-card-back {{ transform: rotateY(180deg); padding: 40px; }}
+    </style>
     <div class="flip-card">
       <div class="flip-card-inner {is_flipped_class}">
         <div class="flip-card-front">
-          <div style="display: flex; align-items: center; justify-content: center;">
+          <div style="display: flex; align-items: center;">
             <small style="color: #888; letter-spacing: 0.1em;">{q['cat'].upper()}</small>
             {review_tag}
           </div>
           <h1 style="font-size: 3.2rem; font-weight: 700; margin: 15px 0; color: #1a1a1a;">{q['word']}</h1>
-          <div style="font-size: 0.7rem; color: #ccc; margin-top: 20px;">點擊翻轉</div>
+          <div style="font-size: 0.7rem; color: #ccc; margin-top: 20px;">點擊下方按鈕翻轉</div>
         </div>
-        ...
         <div class="flip-card-back">
           <div style="text-align: left; width: 100%;">
             <div style="font-size: 0.8rem; color: #888; margin-bottom: 4px;">STRUCTURE</div>
-            <div style="font-family: 'Roboto Mono', monospace; font-size: 1.1rem; color: #0366d6; margin-bottom: 24px;">{q['breakdown']}</div>
+            <div style="font-family: monospace; font-size: 1.1rem; color: #0366d6; margin-bottom: 24px;">{q['breakdown']}</div>
             <div style="font-size: 0.8rem; color: #888; margin-bottom: 4px;">MEANING</div>
             <div style="font-size: 1.4rem; font-weight: 700; color: #24292e; line-height: 1.4;">{q['definition']}</div>
           </div>
@@ -175,6 +178,9 @@ def ui_quiz_page(data):
       </div>
     </div>
     """, unsafe_allow_html=True)
+
+    # 7. 控制按鈕
+    st.write("")
     if not st.session_state.is_flipped:
         if st.button("查看答案", use_container_width=True):
             st.session_state.is_flipped = True
@@ -183,11 +189,11 @@ def ui_quiz_page(data):
         c1, c2 = st.columns(2)
         if c1.button("標記陌生", use_container_width=True):
             st.session_state.failed_words.add(q['word'])
-            del st.session_state.flash_q
+            if 'flash_q' in st.session_state: del st.session_state.flash_q
             st.rerun()
         if c2.button("標記熟練", use_container_width=True):
             st.session_state.failed_words.discard(q['word'])
-            del st.session_state.flash_q
+            if 'flash_q' in st.session_state: del st.session_state.flash_q
             st.rerun()
 # ==========================================
 # 3. 主程序
