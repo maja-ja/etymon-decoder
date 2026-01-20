@@ -23,52 +23,58 @@ def get_stats(data):
 # ==========================================
 # 2. UI 組件
 # ==========================================
-
 def ui_search_page(data, selected_cat):
     st.title("字根導覽")
     
-    # 1. 根據大類過濾出可選的字根組
-    if selected_cat == "全部顯示":
-        relevant_cats = data
-    else:
-        relevant_cats = [c for c in data if c['category'] == selected_cat]
+    # 1. 整理選單資料：根據側邊欄選擇的大類來決定字根清單
+    relevant_cats = data if selected_cat == "全部顯示" else [c for c in data if c['category'] == selected_cat]
     
-    # 提取所有可用的字根選項
     root_options = []
-    root_to_group = {} # 用來快速定位選中的字根群組
+    root_to_group = {}
     
     for cat in relevant_cats:
         for group in cat['root_groups']:
+            # 建立選單標籤：字根 (含義)
             label = f"{' / '.join(group['roots'])} ({group['meaning']})"
             root_options.append(label)
             root_to_group[label] = (cat['category'], group)
     
-    # 2. 字根選擇選單
-    selected_root_label = st.selectbox("選擇字根", ["請選擇字根"] + root_options)
+    # 2. 字根快選選單 (預設列出全部，除非側邊欄有選大類)
+    selected_root_label = st.selectbox(
+        f"字根選單 (目前範圍: {selected_cat})", 
+        ["顯示全部"] + root_options
+    )
     
     st.divider()
 
-    # 3. 顯示邏輯
-    if selected_root_label != "請選擇字根":
+    # 3. 核心顯示邏輯
+    if selected_root_label == "顯示全部":
+        # 如果選顯示全部，就列出目前範圍內所有的字根與單字
+        query = st.text_input("檢索單字", placeholder="在目前範圍內搜尋...").lower().strip()
+        
+        for label in root_options:
+            cat_name, group = root_to_group[label]
+            
+            # 檢查單字過濾
+            matched_v = [v for v in group['vocabulary'] if query in v['word'].lower()] if query else group['vocabulary']
+            
+            if matched_v:
+                st.markdown(f"### {label}")
+                for v in matched_v:
+                    is_expanded = bool(query) # 有搜尋才展開
+                    with st.expander(f"{v['word']}", expanded=is_expanded):
+                        st.write(f"結構: `{v['breakdown']}`")
+                        st.write(f"釋義: {v['definition']}")
+    else:
+        # 如果選了特定字根，只顯示該組內容
         cat_name, group = root_to_group[selected_root_label]
-        
         st.subheader(f"分類：{cat_name}")
-        st.info(f"字根：{' / '.join(group['roots'])} — {group['meaning']}")
-        
-        # 搜尋框（縮小範圍至該字根群內）
-        query = st.text_input("在結果中搜尋單字", placeholder="輸入關鍵字...").lower().strip()
+        st.info(f"字根：{selected_root_label}")
         
         for v in group['vocabulary']:
-            # 如果有搜尋，則只顯示匹配項並展開；如果沒搜尋，顯示全部但不展開
-            is_match = not query or query in v['word'].lower()
-            if is_match:
-                is_expanded = bool(query)
-                with st.expander(f"{v['word']}", expanded=is_expanded):
-                    st.write(f"結構: `{v['breakdown']}`")
-                    st.write(f"釋義: {v['definition']}")
-    else:
-        st.write("請從上方選單選擇一個字根以查看詳細單字。")
-def ui_quiz_page(data):
+            with st.expander(f"{v['word']}", expanded=False):
+                st.write(f"結構: `{v['breakdown']}`")
+                st.write(f"釋義: {v['definition']}")
     st.title("記憶卡片")
     
     all_words = [{**v, "cat": cat['category']} for cat in data for group in cat['root_groups'] for v in group['vocabulary']]
