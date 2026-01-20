@@ -127,8 +127,7 @@ def ui_quiz_page(data):
     
     # --- 以下為卡片渲染與按鈕邏輯 (保持原本樣式) ---
     is_flipped_class = "flipped" if st.session_state.is_flipped else ""
-    
-    # 頂部工具列：顯示目前範圍與退出按鈕
+
     # 頂部工具列：顯示目前範圍與退出按鈕
     col_t1, col_t2 = st.columns([4, 1])
     col_t1.caption(f"範圍: {st.session_state.selected_quiz_cat}")
