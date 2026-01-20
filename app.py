@@ -224,7 +224,7 @@ def ui_note_page():
     st.title("📓 我的筆記本")
     st.write("這裡是你的私人單字區...")
 def get_stats(data):
-"""計算資料庫統計數據"""
+    """計算資料庫統計數據"""
     total_cats = len(data)
     total_roots = 0
     total_words = 0
