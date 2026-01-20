@@ -82,7 +82,6 @@ def ui_quiz_page(data):
         if st.button("開始練習", use_container_width=True):
             st.session_state.selected_quiz_cat = selected_quiz_cat
             st.session_state.quiz_active = True
-            # 重置題目，確保開始時重新抽題
             if 'flash_q' in st.session_state: del st.session_state.flash_q
             st.rerun()
         return
@@ -115,10 +114,7 @@ def ui_quiz_page(data):
 
     # 4. 智慧抽題邏輯
     if 'flash_q' not in st.session_state:
-        # 預設為非複習
         st.session_state.is_review = False
-        
-        # 50% 機率挑選陌生字 (如果有的話)
         if st.session_state.failed_words and random.random() > 0.5:
             failed_pool = [w for w in all_words if w['word'] in st.session_state.failed_words]
             if failed_pool:
@@ -128,23 +124,17 @@ def ui_quiz_page(data):
                 st.session_state.flash_q = random.choice(all_words)
         else:
             st.session_state.flash_q = random.choice(all_words)
-        
         st.session_state.is_flipped = False
 
-    # 5. 抓取當前狀態進行渲染
     q = st.session_state.flash_q
     is_review = st.session_state.get('is_review', False)
     is_flipped_class = "flipped" if st.session_state.is_flipped else ""
 
-    # 建立複習標籤 HTML
-    review_tag = """
-    <span style="background-color: #ffeef0; color: #d73a49; padding: 2px 8px; border-radius: 4px; 
-    font-size: 0.7rem; font-weight: bold; margin-left: 10px; border: 1px solid #f9c2c7;">複習</span>
-    """ if is_review else ""
+    # 建立複習標籤
+    review_tag = '<span style="background-color:#ffeef0;color:#d73a49;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:bold;margin-left:10px;border:1px solid #f9c2c7;">複習</span>' if is_review else ""
 
-    # 6. 卡片渲染
-    # 6. 卡片渲染 (修正 HTML 閉合問題)
-    st.markdown(f"""
+    # 5. 修正後的卡片渲染 (極簡化結構以防解析錯誤)
+    card_html = f"""
     <style>
     .flip-card {{ background-color: transparent; width: 100%; height: 350px; perspective: 1000px; }}
     .flip-card-inner {{ position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d; }}
@@ -156,30 +146,29 @@ def ui_quiz_page(data):
     }}
     .flip-card-back {{ transform: rotateY(180deg); padding: 40px; }}
     </style>
-
     <div class="flip-card">
-      <div class="flip-card-inner {is_flipped_class}">
-        <div class="flip-card-front">
-          <div style="display: flex; align-items: center; justify-content: center;">
-            <small style="color: #888; letter-spacing: 0.1em;">{q['cat'].upper()}</small>
-            {review_tag}
-          </div>
-          <h1 style="font-size: 3.2rem; font-weight: 700; margin: 15px 0; color: #1a1a1a;">{q['word']}</h1>
-          <div style="font-size: 0.7rem; color: #ccc; margin-top: 20px;">點擊下方按鈕翻轉</div>
+        <div class="flip-card-inner {is_flipped_class}">
+            <div class="flip-card-front">
+                <div style="display:flex; align-items:center; justify-content:center;">
+                    <small style="color:#888;">{q['cat'].upper()}</small>{review_tag}
+                </div>
+                <h1 style="font-size:3.2rem; font-weight:700; margin:15px 0; color:#1a1a1a;">{q['word']}</h1>
+                <div style="font-size:0.7rem; color:#ccc;">點擊翻轉</div>
+            </div>
+            <div class="flip-card-back">
+                <div style="text-align:left; width:100%;">
+                    <div style="font-size:0.8rem; color:#888;">STRUCTURE</div>
+                    <div style="font-family:monospace; font-size:1.1rem; color:#0366d6; margin-bottom:20px;">{q['breakdown']}</div>
+                    <div style="font-size:0.8rem; color:#888;">MEANING</div>
+                    <div style="font-size:1.4rem; font-weight:700; color:#24292e;">{q['definition']}</div>
+                </div>
+            </div>
         </div>
-        <div class="flip-card-back">
-          <div style="text-align: left; width: 100%;">
-            <div style="font-size: 0.8rem; color: #888; margin-bottom: 4px;">STRUCTURE</div>
-            <div style="font-family: monospace; font-size: 1.1rem; color: #0366d6; margin-bottom: 24px;">{q['breakdown']}</div>
-            <div style="font-size: 0.8rem; color: #888; margin-bottom: 4px;">MEANING</div>
-            <div style="font-size: 1.4rem; font-weight: 700; color: #24292e; line-height: 1.4;">{q['definition']}</div>
-          </div>
-        </div>
-      </div>
     </div>
-    """, unsafe_allow_html=True)
+    """
+    st.markdown(card_html, unsafe_allow_html=True)
 
-    # 7. 控制按鈕
+    # 6. 控制按鈕
     st.write("")
     if not st.session_state.is_flipped:
         if st.button("查看答案", use_container_width=True):
