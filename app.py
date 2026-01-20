@@ -225,16 +225,16 @@ def ui_note_page():
     st.write("這裡是你的私人單字區...")
 def get_stats(data):
 """計算資料庫統計數據"""
-total_cats = len(data)
-total_roots = 0
-total_words = 0
-
-for cat in data:
-    total_roots += len(cat.get('root_groups', []))
-    for group in cat.get('root_groups', []):
-        total_words += len(group.get('vocabulary', []))
-        
-return total_cats, total_roots, total_words
+    total_cats = len(data)
+    total_roots = 0
+    total_words = 0
+    
+    for cat in data:
+        total_roots += len(cat.get('root_groups', []))
+        for group in cat.get('root_groups', []):
+            total_words += len(group.get('vocabulary', []))
+            
+    return total_cats, total_roots, total_words
 # ==========================================
 # 4. 主程式流程 (Main Entry)
 # ==========================================
