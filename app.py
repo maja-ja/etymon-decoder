@@ -64,7 +64,6 @@ def ui_search_page(data, selected_cat):
             with st.expander(f"{v['word']}", expanded=False):
                 st.write(f"結構: `{v['breakdown']}`")
                 st.write(f"釋義: {v['definition']}")
-
 def ui_quiz_page(data):
     # 0. 基礎狀態初始化
     if 'failed_words' not in st.session_state:
@@ -133,7 +132,7 @@ def ui_quiz_page(data):
     # 建立複習標籤
     review_tag = '<span style="background-color:#ffeef0;color:#d73a49;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:bold;margin-left:10px;border:1px solid #f9c2c7;">複習</span>' if is_review else ""
 
-    # 5. 修正後的卡片渲染 (極簡化結構以防解析錯誤)
+    # 5. 卡片渲染
     card_html = f"""
     <style>
     .flip-card {{ background-color: transparent; width: 100%; height: 350px; perspective: 1000px; }}
@@ -153,7 +152,7 @@ def ui_quiz_page(data):
                     <small style="color:#888;">{q['cat'].upper()}</small>{review_tag}
                 </div>
                 <h1 style="font-size:3.2rem; font-weight:700; margin:15px 0; color:#1a1a1a;">{q['word']}</h1>
-                <div style="font-size:0.7rem; color:#ccc;">點擊翻轉</div>
+                <div style="font-size:0.7rem; color:#ccc;">等待翻轉...</div>
             </div>
             <div class="flip-card-back">
                 <div style="text-align:left; width:100%;">
@@ -168,30 +167,14 @@ def ui_quiz_page(data):
     """
     st.markdown(card_html, unsafe_allow_html=True)
 
-    # 6. 控制按鈕
+    # 6. 控制按鈕 (整合翻回功能)
     st.write("")
     if not st.session_state.is_flipped:
         if st.button("查看答案", use_container_width=True):
             st.session_state.is_flipped = True
             st.rerun()
     else:
-        c1, c2 = st.columns(2)
-        if c1.button("標記陌生", use_container_width=True):
-            st.session_state.failed_words.add(q['word'])
-            if 'flash_q' in st.session_state: del st.session_state.flash_q
-            st.rerun()
-        if c2.button("標記熟練", use_container_width=True):
-            st.session_state.failed_words.discard(q['word'])
-            if 'flash_q' in st.session_state: del st.session_state.flash_q
-            st.rerun()
-    # 7. 控制按鈕
-    st.write("")
-    if not st.session_state.is_flipped:
-        if st.button("查看答案", use_container_width=True):
-            st.session_state.is_flipped = True
-            st.rerun()
-    else:
-        # 當卡片翻開時，顯示三個按鈕
+        # 當卡片翻開時，顯示三個功能按鈕
         c1, c2, c3 = st.columns([1, 1, 1])
         
         if c1.button("標記陌生", use_container_width=True):
