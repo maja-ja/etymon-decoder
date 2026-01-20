@@ -223,6 +223,18 @@ def ui_factory_page():
 def ui_note_page():
     st.title("📓 我的筆記本")
     st.write("這裡是你的私人單字區...")
+def get_stats(data):
+"""計算資料庫統計數據"""
+total_cats = len(data)
+total_roots = 0
+total_words = 0
+
+for cat in data:
+    total_roots += len(cat.get('root_groups', []))
+    for group in cat.get('root_groups', []):
+        total_words += len(group.get('vocabulary', []))
+        
+return total_cats, total_roots, total_words
 # ==========================================
 # 4. 主程式流程 (Main Entry)
 # ==========================================
@@ -236,7 +248,18 @@ def main():
     # 側邊欄導覽
     st.sidebar.title("🚀 詞根宇宙")
     st.sidebar.caption(f"Version {APP_CONFIG['version']}")
+    data = load_local_json(APP_CONFIG["files"]["db"])
     
+    # 計算統計
+    c_count, r_count, w_count = get_stats(data)
+
+    # 在側邊欄顯示漂亮的指標
+    st.sidebar.divider()
+    st.sidebar.subheader("📊 宇宙概況")
+    col1, col2 = st.sidebar.columns(2)
+    col1.metric("分類", c_count)
+    col2.metric("單字量", w_count)
+    st.sidebar.caption(f"由 {r_count} 組核心字根建構而成")
     menu = {
         "🔍 導覽解碼": lambda: ui_search_page(data),
         "✍️ 學習測驗": lambda: ui_quiz_page(data),
