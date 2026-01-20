@@ -169,7 +169,7 @@ def ui_search_page(data):
 def ui_quiz_page(data):
     st.title("🃏 3D 翻轉閃卡")
 
-    # 1. 準備題庫邏輯 (與之前相同)
+    # 1. 準備題庫
     all_words = []
     for cat in data:
         for group in cat['root_groups']:
@@ -183,7 +183,9 @@ def ui_quiz_page(data):
         st.session_state.is_flipped = False
 
     q = st.session_state.flash_q
-# 2. 升級版：去 AI 味的極簡高級感 CSS
+    is_flipped_class = "flipped" if st.session_state.is_flipped else ""
+
+    # 2. 定義 CSS (這裡我們不用 f-string，避免大括號衝突)
     flip_css = """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
@@ -208,24 +210,21 @@ def ui_quiz_page(data):
       position: absolute;
       width: 100%;
       height: 100%;
-      -webkit-backface-visibility: hidden;
       backface-visibility: hidden;
       border-radius: 24px;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.08); /* 柔和陰影 */
-      border: 1px solid rgba(255,255,255,0.3);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
     }
 
-    /* 正面：優雅奶油白 */
     .flip-card-front {
       background: linear-gradient(135deg, #ffffff 0%, #f3f4f7 100%);
       color: #2d3436;
+      border: 1px solid #eee;
     }
 
-    /* 背面：深邃午夜藍或質感灰 (取代那個刺眼的亮藍) */
     .flip-card-back {
       background: linear-gradient(135deg, #2d3436 0%, #000000 100%);
       color: #ffffff;
@@ -240,39 +239,33 @@ def ui_quiz_page(data):
       color: #636e72;
       margin-bottom: 10px;
     }
-    
-    .meaning-text {
-      line-height: 1.6;
-      font-weight: 300;
-      opacity: 0.9;
-    }
     </style>
     """
 
-    # 3. 渲染 HTML 卡片 (配合上面的新 CSS)
+    # 3. 渲染 (這裡才用 f-string 填入變數)
     st.markdown(flip_css, unsafe_allow_html=True)
     st.markdown(f"""
     <div class="flip-card">
       <div class="flip-card-inner {is_flipped_class}">
         <div class="flip-card-front">
           <div class="card-label">{q['cat']}</div>
-          <h1 style="font-size: 3.5rem; font-weight: 700; margin: 0; color:#2d3436;">{q['word']}</h1>
+          <h1 style="font-size: 3.5rem; font-weight: 700; margin: 0;">{q['word']}</h1>
           <div style="margin-top:20px; color:#b2bec3;">Click to Decode</div>
         </div>
         <div class="flip-card-back">
           <h2 style="color: #55efc4; margin-bottom: 20px;">✓ 解碼成功</h2>
-          <div class="meaning-text">
-            <p style="font-size: 1.1rem; margin-bottom: 8px;"><b>邏輯拆解</b></p>
-            <p style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px;">{q['breakdown']}</p>
-            <p style="font-size: 1.1rem; margin-top: 20px; margin-bottom: 8px;"><b>核心含義</b></p>
-            <p style="font-size: 1.4rem; color: #fab1a0;">{q['definition']}</p>
+          <div style="text-align: left; width: 100%;">
+            <p style="color: #b2bec3; margin-bottom: 5px;">邏輯拆解</p>
+            <p style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 12px; font-family: monospace;">{q['breakdown']}</p>
+            <p style="color: #b2bec3; margin-top: 20px; margin-bottom: 5px;">核心含義</p>
+            <p style="font-size: 1.5rem; color: #fab1a0; font-weight: 700;">{q['definition']}</p>
           </div>
         </div>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # 4. 控制按鈕
+    # 4. 按鈕區
     st.write("")
     if not st.session_state.is_flipped:
         if st.button("🔄 翻轉卡片", use_container_width=True):
