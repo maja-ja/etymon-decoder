@@ -8,7 +8,7 @@ import base64
 from datetime import datetime
 
 # ==========================================
-# 1. 核心設定 (以後改這裡就好)
+# 1. 核心設定
 # ==========================================
 APP_CONFIG = {
     "version": "V1.1",
@@ -25,27 +25,22 @@ APP_CONFIG = {
 }
 
 # ==========================================
-# 2. 數據處理工具 (引擎部分)
+# 2. 數據處理工具 (Logic)
 # ==========================================
 
 def get_github_auth():
-    """取得 GitHub 認證資訊"""
     try:
         return st.secrets[APP_CONFIG["github"]["token_secret_key"]], st.secrets[APP_CONFIG["github"]["repo_secret_key"]]
     except:
-        st.error("❌ 找不到 GitHub Secrets 設定 (GITHUB_TOKEN / GITHUB_REPO)")
+        st.error("❌ 找不到 GitHub Secrets 設定")
         return None, None
 
 def save_to_github(new_data, filename, is_json=True):
-    """通用 GitHub 同步函式"""
     token, repo = get_github_auth()
     if not token or not repo: return False
-
     try:
         url = f"https://api.github.com/repos/{repo}/contents/{filename}"
         headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
-
-        # 抓取舊檔案 SHA 與內容
         r = requests.get(url, headers=headers)
         sha = r.json().get("sha") if r.status_code == 200 else None
         
@@ -63,7 +58,6 @@ def save_to_github(new_data, filename, is_json=True):
                 current_string = base64.b64decode(r.json()["content"]).decode("utf-8")
             final_string = current_string + new_data
 
-        # 推送更新
         payload = {
             "message": f"🤖 自動更新: {filename}",
             "content": base64.b64encode(final_string.encode("utf-8")).decode("utf-8"),
@@ -76,87 +70,51 @@ def save_to_github(new_data, filename, is_json=True):
         return False
 
 def load_local_json(file_path, default_val=[]):
-    """讀取本地端 JSON 檔案"""
     if os.path.exists(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             try: return json.load(f)
             except: return default_val
     return default_val
 
+def get_stats(data):
+    total_cats = len(data)
+    total_roots = sum(len(cat.get('root_groups', [])) for cat in data)
+    total_words = sum(len(g.get('vocabulary', [])) for cat in data for g in cat.get('root_groups', []))
+    return total_cats, total_roots, total_words
+
 def parse_raw_text(raw_text):
-    """將 AI 格式文字解析為 JSON 結構"""
     new_data = []
     cleaned = raw_text.replace('（', '(').replace('）', ')').replace('－', '-').replace('「', '"').replace('」', '"')
     categories = re.split(r'["\'](.+?)["\']類', cleaned)
-    
     for i in range(1, len(categories), 2):
-        cat_name = categories[i].strip()
-        cat_body = categories[i+1]
+        cat_name, cat_body = categories[i].strip(), categories[i+1]
         cat_obj = {"category": cat_name, "root_groups": []}
         root_blocks = re.split(r'\n(?=-)', cat_body)
-        
         for block in root_blocks:
             root_info = re.search(r'-([\w/ \-]+)-\s*\((.+?)\)', block)
             if root_info:
-                group = {
-                    "roots": [r.strip() for r in root_info.group(1).split('/')],
-                    "meaning": root_info.group(2).strip(),
-                    "vocabulary": []
-                }
+                group = {"roots": [r.strip() for r in root_info.group(1).split('/')], "meaning": root_info.group(2).strip(), "vocabulary": []}
                 word_matches = re.findall(r'(\w+)\s*\((.+?)\)', block)
                 for w_name, w_logic in word_matches:
                     logic_part, def_part = w_logic.split('=', 1) if "=" in w_logic else (w_logic, "待審核")
-                    group["vocabulary"].append({
-                        "word": w_name.strip(),
-                        "breakdown": logic_part.strip(),
-                        "definition": def_part.strip()
-                    })
-                if group["vocabulary"]:
-                    cat_obj["root_groups"].append(group)
-        if cat_obj["root_groups"]:
-            new_data.append(cat_obj)
+                    group["vocabulary"].append({"word": w_name.strip(), "breakdown": logic_part.strip(), "definition": def_part.strip()})
+                if group["vocabulary"]: cat_obj["root_groups"].append(group)
+        if cat_obj["root_groups"]: new_data.append(cat_obj)
     return new_data
 
 # ==========================================
-# 3. 介面元件 (UI Components)
+# 3. 介面元件 (UI)
 # ==========================================
 
 def ui_search_page(data):
     st.title("🔍 導覽解碼系統")
-    
-    # 隨機推薦
-    if 'preview_words' not in st.session_state:
-        all_v = []
-        for cat in data:
-            for group in cat['root_groups']:
-                for v in group['vocabulary']:
-                    all_v.append({**v, "cat": cat['category'], "roots": group['roots']})
-        st.session_state.preview_words = random.sample(all_v, min(len(all_v), 3)) if all_v else []
-
-    # 推薦卡片
-    cols = st.columns(3)
-    for i, word in enumerate(st.session_state.preview_words):
-        with cols[i]:
-            st.markdown(f"""<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#f9f9f9;">
-                <h4 style="margin:0; color:#007BFF;">{word['word']}</h4>
-                <small>{word['cat']} | {'/'.join(word['roots'])}</small>
-            </div>""", unsafe_allow_html=True)
-    
-    if st.button("🔄 換一批推薦"):
-        del st.session_state.preview_words
-        st.rerun()
-
-    st.divider()
-
-    # 搜尋邏輯
-    query = st.text_input("輸入字根或單字搜尋", placeholder="例如: dict, photo...").lower().strip()
+    query = st.text_input("輸入字根或單字搜尋", placeholder="例如: dict, cap...").lower().strip()
     if query:
         found = False
         for cat in data:
             for group in cat['root_groups']:
                 root_match = any(query in r.lower() for r in group['roots'])
                 matched_v = [v for v in group['vocabulary'] if query in v['word'].lower()]
-                
                 if root_match or matched_v:
                     found = True
                     st.markdown(f"### 🧬 {cat['category']} (`{' / '.join(group['roots'])}`)")
@@ -166,89 +124,35 @@ def ui_search_page(data):
                             st.write(f"**拆解：** `{v['breakdown']}`")
                             st.write(f"**含義：** {v['definition']}")
         if not found: st.warning("找不到相關資料。")
+
 def ui_quiz_page(data):
     st.title("🃏 3D 翻轉閃卡")
-
-    # 1. 準備題庫
-    all_words = []
-    for cat in data:
-        for group in cat['root_groups']:
-            for v in group['vocabulary']:
-                all_words.append({**v, "cat": cat['category']})
-    
+    all_words = [{**v, "cat": cat['category']} for cat in data for group in cat['root_groups'] for v in group['vocabulary']]
     if not all_words: return st.info("尚無數據")
-
     if 'flash_q' not in st.session_state:
         st.session_state.flash_q = random.choice(all_words)
         st.session_state.is_flipped = False
-
+    
     q = st.session_state.flash_q
     is_flipped_class = "flipped" if st.session_state.is_flipped else ""
 
-    # 2. 定義 CSS (這裡我們不用 f-string，避免大括號衝突)
     flip_css = """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
-    
-    .flip-card {
-      background-color: transparent;
-      width: 100%;
-      height: 350px;
-      perspective: 1000px;
-      font-family: 'Noto Sans TC', sans-serif;
-    }
-    .flip-card-inner {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
-      transform-style: preserve-3d;
-    }
+    .flip-card { background-color: transparent; width: 100%; height: 350px; perspective: 1000px; font-family: 'Noto Sans TC', sans-serif; }
+    .flip-card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1); transform-style: preserve-3d; }
     .flipped { transform: rotateY(180deg); }
-
-    .flip-card-front, .flip-card-back {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      backface-visibility: hidden;
-      border-radius: 24px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-    }
-
-    .flip-card-front {
-      background: linear-gradient(135deg, #ffffff 0%, #f3f4f7 100%);
-      color: #2d3436;
-      border: 1px solid #eee;
-    }
-
-    .flip-card-back {
-      background: linear-gradient(135deg, #2d3436 0%, #000000 100%);
-      color: #ffffff;
-      transform: rotateY(180deg);
-      padding: 30px;
-    }
-
-    .card-label {
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      font-size: 0.8rem;
-      color: #636e72;
-      margin-bottom: 10px;
-    }
+    .flip-card-front, .flip-card-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 24px; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 1px solid #eee; }
+    .flip-card-front { background: linear-gradient(135deg, #ffffff 0%, #f3f4f7 100%); color: #2d3436; }
+    .flip-card-back { background: linear-gradient(135deg, #2d3436 0%, #000000 100%); color: #ffffff; transform: rotateY(180deg); padding: 30px; }
     </style>
     """
-
-    # 3. 渲染 (這裡才用 f-string 填入變數)
     st.markdown(flip_css, unsafe_allow_html=True)
     st.markdown(f"""
     <div class="flip-card">
       <div class="flip-card-inner {is_flipped_class}">
         <div class="flip-card-front">
-          <div class="card-label">{q['cat']}</div>
+          <div style="text-transform: uppercase; letter-spacing: 2px; font-size: 0.8rem; color: #636e72;">{q['cat']}</div>
           <h1 style="font-size: 3.5rem; font-weight: 700; margin: 0;">{q['word']}</h1>
           <div style="margin-top:20px; color:#b2bec3;">Click to Decode</div>
         </div>
@@ -265,7 +169,6 @@ def ui_quiz_page(data):
     </div>
     """, unsafe_allow_html=True)
 
-    # 4. 按鈕區
     st.write("")
     if not st.session_state.is_flipped:
         if st.button("🔄 翻轉卡片", use_container_width=True):
@@ -283,106 +186,41 @@ def ui_quiz_page(data):
             st.session_state.is_flipped = False
             st.rerun()
 
-    # 4. 按鈕區
-    st.write("")
-    if not st.session_state.is_flipped:
-        if st.button("🔄 翻轉卡片", use_container_width=True):
-            st.session_state.is_flipped = True
-            st.rerun()
-    else:
-        col1, col2 = st.columns(2)
-        if col1.button("❌ 還不熟", use_container_width=True):
-            del st.session_state.flash_q
-            st.session_state.is_flipped = False
-            st.rerun()
-        if col2.button("✅ 記住了", use_container_width=True):
-            st.balloons()
-            del st.session_state.flash_q
-            st.session_state.is_flipped = False
-            st.rerun()
 def ui_factory_page():
     st.title("⚙️ 數據管理")
-    st.info("請將 AI 生成的標準格式貼在下方，系統會自動處理並同步至 GitHub。")
-    
-    with st.expander("📌 格式範本與提示詞", expanded=False):
-        st.code("「（分類）」類\n-字根-(含義)\n單字((前綴)+(字根)=總義)", language="text")
-    
-    raw_input = st.text_area("數據貼上區", height=250)
+    raw_input = st.text_area("數據貼上區", height=250, placeholder="在此貼上 AI 生成格式...")
     user_name = st.text_input("你的暱稱", value="Anonymous")
-    
     if st.button("🚀 提交數據"):
-        parsed_data = parse_raw_text(raw_input)
-        if parsed_data:
-            if save_to_github(parsed_data, APP_CONFIG["files"]["pending"]):
-                # 同步貢獻名單
-                contrib = [{"name": user_name, "date": datetime.now().strftime('%Y-%m-%d'), "type": "Data"}]
-                save_to_github(contrib, APP_CONFIG["files"]["contrib"])
-                st.success("數據已成功送往 GitHub 隔離區！")
-                st.balloons()
-            else:
-                st.error("同步失敗，請檢查 Secrets 設定。")
-        else:
-            st.error("解析錯誤，請確認輸入格式。")
+        parsed = parse_raw_text(raw_input)
+        if parsed and save_to_github(parsed, APP_CONFIG["files"]["pending"]):
+            save_to_github([{"name": user_name, "date": datetime.now().strftime('%Y-%m-%d'), "type": "Data"}], APP_CONFIG["files"]["contrib"])
+            st.success("數據已送往 GitHub！")
+            st.balloons()
+        else: st.error("解析或同步失敗")
+
 def ui_note_page():
     st.title("📓 我的筆記本")
-    st.write("這裡是你的私人單字區...")
-def get_stats(data):
-    """計算資料庫統計數據"""
-    total_cats = len(data)
-    total_roots = 0
-    total_words = 0
-    
-    for cat in data:
-        total_roots += len(cat.get('root_groups', []))
-        for group in cat.get('root_groups', []):
-            total_words += len(group.get('vocabulary', []))
-            
-    return total_cats, total_roots, total_words
-def get_card_style(category_name):
-    """根據類別名稱決定顏色"""
-    colors = {
-        "心靈": "#FFD1DC", "科技": "#E0F7FA", 
-        "感知": "#FFF9C4", "動作": "#DCEDC8"
-    }
-    # 如果沒匹配到，預設灰色
-    bg_color = next((v for k, v in colors.items() if k in category_name), "#F5F5F5")
-    
-    return f"""
-    <div style="
-        background-color: {bg_color};
-        padding: 30px;
-        border-radius: 15px;
-        border: 2px solid #333;
-        text-align: center;
-        margin-bottom: 20px;
-        box-shadow: 5px 5px 15px rgba(0,0,0,0.1);
-    ">
-    """
+    st.info("此功能開發中，未來將支援個人收藏單字庫。")
+
 # ==========================================
-# 4. 主程式流程 (Main Entry)
+# 4. 主程式流程
 # ==========================================
 
 def main():
     st.set_page_config(page_title="詞根宇宙", layout="wide")
-    
-    # 載入數據
     data = load_local_json(APP_CONFIG["files"]["db"])
-
-    # 側邊欄導覽
+    
+    # 側邊欄統計與導航
     st.sidebar.title("🚀 詞根宇宙")
     st.sidebar.caption(f"Version {APP_CONFIG['version']}")
-    data = load_local_json(APP_CONFIG["files"]["db"])
     
-    # 計算統計
     c_count, r_count, w_count = get_stats(data)
-
-    # 在側邊欄顯示漂亮的指標
     st.sidebar.divider()
     st.sidebar.subheader("📊 宇宙概況")
     col1, col2 = st.sidebar.columns(2)
     col1.metric("分類", c_count)
     col2.metric("單字量", w_count)
-    st.sidebar.caption(f"由 {r_count} 組核心字根建構而成")
+    
     menu = {
         "🔍 導覽解碼": lambda: ui_search_page(data),
         "✍️ 學習測驗": lambda: ui_quiz_page(data),
@@ -390,18 +228,16 @@ def main():
         "📓 筆記本": ui_note_page,
         "🤝 合作招募": lambda: st.info("聯繫方式：kadowsella@gmail.com")
     }
-    
     choice = st.sidebar.radio("導航選單", list(menu.keys()))
     
-    # 側邊欄許願池
+    # 許願池
     st.sidebar.divider()
     wish = st.sidebar.text_input("🎯 單字許願池")
-    if st.sidebar.button("送出願望"):
+    if st.sidebar.button("送出願望") and wish:
         msg = f"[{datetime.now().strftime('%m-%d %H:%M')}] {wish}\n"
         if save_to_github(msg, APP_CONFIG["files"]["wish"], is_json=False):
             st.sidebar.success("願望已傳達！")
 
-    # 執行頁面函式
     menu[choice]()
 
 if __name__ == "__main__":
