@@ -81,4 +81,64 @@ def ui_quiz_page(data):
         <div class="flip-card-back">
           <div style="text-align: left; width: 100%;">
             <div style="font-size: 0.8rem; color: #888; margin-bottom: 4px;">結構</div>
-            <div style="font-family: monospace; font-size: 1.1rem; color: #333; margin-
+            <div style="font-family: monospace; font-size: 1.1rem; color: #333; margin-bottom: 24px;">{q['breakdown']}</div>
+            <div style="font-size: 0.8rem; color: #888; margin-bottom: 4px;">釋義</div>
+            <div style="font-size: 1.4rem; font-weight: 700; color: #222;">{q['definition']}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.write("")
+    if not st.session_state.is_flipped:
+        if st.button("翻轉", use_container_width=True):
+            st.session_state.is_flipped = True
+            st.rerun()
+    else:
+        col1, col2 = st.columns(2)
+        if col1.button("標記陌生", use_container_width=True):
+            st.session_state.failed_words.add(q['word'])
+            del st.session_state.flash_q
+            st.session_state.is_flipped = False
+            st.rerun()
+        if col2.button("標記熟練", use_container_width=True):
+            st.session_state.failed_words.discard(q['word'])
+            del st.session_state.flash_q
+            st.session_state.is_flipped = False
+            st.rerun()
+
+    if st.session_state.failed_words:
+        st.divider()
+        st.write(f"目前待克服詞彙: {len(st.session_state.failed_words)}")
+        st.caption(", ".join(list(st.session_state.failed_words)))
+
+# ==========================================
+# 3. 主程序
+# ==========================================
+
+def main():
+    st.set_page_config(page_title="Etymon", layout="wide")
+    data = load_db()
+    
+    st.sidebar.title("Etymon")
+    
+    # 數據統計 (保留)
+    c_count, w_count = get_stats(data)
+    st.sidebar.divider()
+    st.sidebar.write("**數據統計**")
+    st.sidebar.text(f"分類: {c_count}")
+    st.sidebar.text(f"總單字量: {w_count}")
+    
+    menu = {
+        "字根導覽": lambda: ui_search_page(data),
+        "記憶卡片": lambda: ui_quiz_page(data)
+    }
+    
+    st.sidebar.divider()
+    choice = st.sidebar.radio("選單", list(menu.keys()), label_visibility="collapsed")
+    
+    menu[choice]()
+
+if __name__ == "__main__":
+    main()
