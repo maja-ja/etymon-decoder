@@ -24,33 +24,39 @@ def get_stats(data):
 # 2. UI 組件
 # ==========================================
 
-def ui_search_page(data):
+def ui_search_page(data, selected_cat):
     st.title("字根導覽")
+    
+    # 過濾資料
+    filtered_data = data if selected_cat == "全部顯示" else [c for c in data if c['category'] == selected_cat]
+    
     query = st.text_input("檢索字根或單字", placeholder="輸入關鍵字...").lower().strip()
-    if query:
-        found = False
-        for cat in data:
-            for group in cat['root_groups']:
-                root_match = any(query in r.lower() for r in group['roots'])
-                matched_v = [v for v in group['vocabulary'] if query in v['word'].lower()]
-                if root_match or matched_v:
-                    found = True
-                    st.markdown(f"**{cat['category']}** ({' / '.join(group['roots'])})")
-                    for v in group['vocabulary']:
-                        is_target = query in v['word'].lower()
-                        with st.expander(f"{v['word']}", expanded=is_target):
-                            st.write(f"結構: `{v['breakdown']}`")
-                            st.write(f"釋義: {v['definition']}")
-        if not found: st.write("未找到匹配項")
+    
+    found = False
+    for cat in filtered_data:
+        # 如果沒搜尋關鍵字，就顯示該分類所有內容；如果有關鍵字，則進行過濾
+        for group in cat['root_groups']:
+            root_match = any(query in r.lower() for r in group['roots'])
+            matched_v = [v for v in group['vocabulary'] if query in v['word'].lower()]
+            
+            if not query or root_match or matched_v:
+                found = True
+                st.markdown(f"**{cat['category']}** ({' / '.join(group['roots'])})")
+                for v in group['vocabulary']:
+                    # 只有搜尋時才預設展開相關單字
+                    is_target = query and query in v['word'].lower()
+                    with st.expander(f"{v['word']}", expanded=is_target):
+                        st.write(f"結構: `{v['breakdown']}`")
+                        st.write(f"釋義: {v['definition']}")
+    
+    if not found: st.write("未找到匹配項")
 
 def ui_quiz_page(data):
     st.title("記憶卡片")
     
-    # 扁平化所有單字
     all_words = [{**v, "cat": cat['category']} for cat in data for group in cat['root_groups'] for v in group['vocabulary']]
     if not all_words: return st.write("數據庫空缺")
     
-    # 初始化學習進度
     if 'failed_words' not in st.session_state: st.session_state.failed_words = set()
     if 'flash_q' not in st.session_state:
         st.session_state.flash_q = random.choice(all_words)
@@ -105,40 +111,4 @@ def ui_quiz_page(data):
         if col2.button("標記熟練", use_container_width=True):
             st.session_state.failed_words.discard(q['word'])
             del st.session_state.flash_q
-            st.session_state.is_flipped = False
-            st.rerun()
-
-    if st.session_state.failed_words:
-        st.divider()
-        st.write(f"目前待克服詞彙: {len(st.session_state.failed_words)}")
-        st.caption(", ".join(list(st.session_state.failed_words)))
-
-# ==========================================
-# 3. 主程序
-# ==========================================
-
-def main():
-    st.set_page_config(page_title="Etymon", layout="wide")
-    data = load_db()
-    
-    st.sidebar.title("Etymon")
-    
-    # 數據統計 (保留)
-    c_count, w_count = get_stats(data)
-    st.sidebar.divider()
-    st.sidebar.write("**數據統計**")
-    st.sidebar.text(f"分類: {c_count}")
-    st.sidebar.text(f"總單字量: {w_count}")
-    
-    menu = {
-        "字根導覽": lambda: ui_search_page(data),
-        "記憶卡片": lambda: ui_quiz_page(data)
-    }
-    
-    st.sidebar.divider()
-    choice = st.sidebar.radio("選單", list(menu.keys()), label_visibility="collapsed")
-    
-    menu[choice]()
-
-if __name__ == "__main__":
-    main()
+            st.session_state.is_
