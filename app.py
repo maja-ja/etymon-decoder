@@ -167,9 +167,9 @@ def ui_search_page(data):
                             st.write(f"**含義：** {v['definition']}")
         if not found: st.warning("找不到相關資料。")
 def ui_quiz_page(data):
-    st.title("🃏 詞根宇宙閃卡")
-    
-    # 準備題庫
+    st.title("🃏 3D 翻轉閃卡")
+
+    # 1. 準備題庫邏輯 (與之前相同)
     all_words = []
     for cat in data:
         for group in cat['root_groups']:
@@ -178,47 +178,97 @@ def ui_quiz_page(data):
     
     if not all_words: return st.info("尚無數據")
 
-    # 初始化閃卡狀態
     if 'flash_q' not in st.session_state:
         st.session_state.flash_q = random.choice(all_words)
         st.session_state.is_flipped = False
 
     q = st.session_state.flash_q
-    card_style = get_card_style(q['cat'])
 
-    # --- 閃卡正面 (顯示單字) ---
-    st.markdown(f"{card_style}<h1 style='color: #333;'>{q['word']}</h1><p>{q['cat']}</p></div>", unsafe_allow_html=True)
+    # 2. 定義 CSS 翻轉動畫
+    flip_css = """
+    <style>
+    .flip-card {
+      background-color: transparent;
+      width: 100%;
+      height: 300px;
+      perspective: 1000px;
+    }
+    .flip-card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      text-align: center;
+      transition: transform 0.6s;
+      transform-style: preserve-3d;
+    }
+    .flipped {
+      transform: rotateY(180deg);
+    }
+    .flip-card-front, .flip-card-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      border-radius: 15px;
+      border: 2px solid #333;
+      box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+    }
+    .flip-card-front {
+      background-color: #f8f9fa;
+      color: black;
+    }
+    .flip-card-back {
+      background-color: #007bff;
+      color: white;
+      transform: rotateY(180deg);
+      padding: 20px;
+    }
+    </style>
+    """
 
-    # --- 翻面按鈕 ---
+    # 3. 渲染 HTML 卡片
+    is_flipped_class = "flipped" if st.session_state.is_flipped else ""
+    
+    st.markdown(flip_css, unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="flip-card">
+      <div class="flip-card-inner {is_flipped_class}">
+        <div class="flip-card-front">
+          <small style="color:gray;">{q['cat']}</small>
+          <h1 style="font-size: 3em; margin: 10px 0;">{q['word']}</h1>
+          <p style="color:gray;">點擊下方按鈕翻轉</p>
+        </div>
+        <div class="flip-card-back">
+          <h3>解碼成功！</h3>
+          <p style="font-size: 1.2em;"><b>拆解：</b>{q['breakdown']}</p>
+          <p style="font-size: 1.2em;"><b>含義：</b>{q['definition']}</p>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 4. 控制按鈕
+    st.write("")
     if not st.session_state.is_flipped:
-        if st.button("🔄 翻轉卡片看答案", use_container_width=True):
+        if st.button("🔄 翻轉卡片", use_container_width=True):
             st.session_state.is_flipped = True
             st.rerun()
     else:
-        # --- 閃卡背面 (顯示解析) ---
-        st.markdown(f"""
-        <div style="background-color: #f1f1f1; padding: 20px; border-radius: 10px; border-left: 5px solid #007bff;">
-            <p><b>拆解：</b> <code>{q['breakdown']}</code></p>
-            <p><b>含義：</b> {q['definition']}</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.write("---")
-        st.write("這題你掌握了嗎？")
         col1, col2 = st.columns(2)
-        
-        if col1.button("❌ 還不熟 (再排一次)", use_container_width=True):
-            # 這裡以後可以串接演算法，現在先簡單隨機換題
+        if col1.button("❌ 還不熟", use_container_width=True):
             del st.session_state.flash_q
             st.session_state.is_flipped = False
             st.rerun()
-            
-        if col2.button("✅ 記住了 (下一題)", use_container_width=True):
+        if col2.button("✅ 記住了", use_container_width=True):
             st.balloons()
             del st.session_state.flash_q
             st.session_state.is_flipped = False
             st.rerun()
-
 def ui_factory_page():
     st.title("⚙️ 數據管理")
     st.info("請將 AI 生成的標準格式貼在下方，系統會自動處理並同步至 GitHub。")
