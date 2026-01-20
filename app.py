@@ -185,7 +185,7 @@ def ui_quiz_page(data):
     q = st.session_state.flash_q
     is_flipped_class = "flipped" if st.session_state.is_flipped else ""
 
-    # 2. 灰色系高級感 CSS (拿掉藍色，改用漸層灰與層次白)
+    # 2. 定義 CSS (這裡我們不用 f-string，避免大括號衝突)
     flip_css = """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
@@ -216,64 +216,72 @@ def ui_quiz_page(data):
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.05); /* 更輕的陰影 */
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
     }
 
-    /* 正面：淺灰色與細邊框 */
     .flip-card-front {
-      background: #ffffff;
+      background: linear-gradient(135deg, #ffffff 0%, #f3f4f7 100%);
       color: #2d3436;
-      border: 1px solid #e0e0e0;
+      border: 1px solid #eee;
     }
 
-    /* 背面：深灰色質感 (取代藍色) */
     .flip-card-back {
-      background: linear-gradient(135deg, #444444 0%, #222222 100%);
+      background: linear-gradient(135deg, #2d3436 0%, #000000 100%);
       color: #ffffff;
       transform: rotateY(180deg);
       padding: 30px;
-      border: 1px solid #333;
     }
 
     .card-label {
       text-transform: uppercase;
       letter-spacing: 2px;
-      font-size: 0.75rem;
-      color: #9e9e9e;
-      margin-bottom: 12px;
-    }
-    
-    .meaning-box {
-      text-align: left; 
-      width: 100%;
-      border-left: 3px solid #666; /* 灰色點綴線 */
-      padding-left: 15px;
+      font-size: 0.8rem;
+      color: #636e72;
+      margin-bottom: 10px;
     }
     </style>
     """
 
-    # 3. 渲染 HTML 卡片
+    # 3. 渲染 (這裡才用 f-string 填入變數)
     st.markdown(flip_css, unsafe_allow_html=True)
     st.markdown(f"""
     <div class="flip-card">
       <div class="flip-card-inner {is_flipped_class}">
         <div class="flip-card-front">
           <div class="card-label">{q['cat']}</div>
-          <h1 style="font-size: 3.5rem; font-weight: 700; margin: 0; color:#333;">{q['word']}</h1>
-          <div style="margin-top:20px; color:#ccc; font-size: 0.9rem;">Tap to reveal</div>
+          <h1 style="font-size: 3.5rem; font-weight: 700; margin: 0;">{q['word']}</h1>
+          <div style="margin-top:20px; color:#b2bec3;">Click to Decode</div>
         </div>
         <div class="flip-card-back">
-          <div class="meaning-box">
-            <h3 style="color: #bbb; margin-bottom: 15px; font-weight: 400;">DECODED</h3>
-            <p style="color: #888; margin-bottom: 5px; font-size: 0.9rem;">STRUCTURE</p>
-            <p style="font-family: monospace; font-size: 1.1rem; margin-bottom: 20px; color: #eee;">{q['breakdown']}</p>
-            <p style="color: #888; margin-bottom: 5px; font-size: 0.9rem;">DEFINITION</p>
-            <p style="font-size: 1.6rem; font-weight: 700; color: #ffffff;">{q['definition']}</p>
+          <h2 style="color: #55efc4; margin-bottom: 20px;">✓ 解碼成功</h2>
+          <div style="text-align: left; width: 100%;">
+            <p style="color: #b2bec3; margin-bottom: 5px;">邏輯拆解</p>
+            <p style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 12px; font-family: monospace;">{q['breakdown']}</p>
+            <p style="color: #b2bec3; margin-top: 20px; margin-bottom: 5px;">核心含義</p>
+            <p style="font-size: 1.5rem; color: #fab1a0; font-weight: 700;">{q['definition']}</p>
           </div>
         </div>
       </div>
     </div>
     """, unsafe_allow_html=True)
+
+    # 4. 按鈕區
+    st.write("")
+    if not st.session_state.is_flipped:
+        if st.button("🔄 翻轉卡片", use_container_width=True):
+            st.session_state.is_flipped = True
+            st.rerun()
+    else:
+        col1, col2 = st.columns(2)
+        if col1.button("❌ 還不熟", use_container_width=True):
+            del st.session_state.flash_q
+            st.session_state.is_flipped = False
+            st.rerun()
+        if col2.button("✅ 記住了", use_container_width=True):
+            st.balloons()
+            del st.session_state.flash_q
+            st.session_state.is_flipped = False
+            st.rerun()
 
     # 4. 按鈕區
     st.write("")
