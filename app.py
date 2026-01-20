@@ -167,9 +167,6 @@ def main():
     st.sidebar.write("**統計**")
     st.sidebar.text(f"分類總數: {c_count}")
     st.sidebar.text(f"單字總量: {w_count}")
-    # 在 main() 函式內的選單部分
-    categories = ["全部顯示"] + sorted([c['category'] for c in data])
-    selected_cat = st.sidebar.selectbox("選擇大類", categories)
     
     if choice == "字根導覽":
         ui_search_page(data, selected_cat)
