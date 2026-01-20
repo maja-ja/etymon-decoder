@@ -166,7 +166,58 @@ def ui_search_page(data):
                             st.write(f"**拆解：** `{v['breakdown']}`")
                             st.write(f"**含義：** {v['definition']}")
         if not found: st.warning("找不到相關資料。")
+def ui_quiz_page(data):
+    st.title("🃏 詞根宇宙閃卡")
+    
+    # 準備題庫
+    all_words = []
+    for cat in data:
+        for group in cat['root_groups']:
+            for v in group['vocabulary']:
+                all_words.append({**v, "cat": cat['category']})
+    
+    if not all_words: return st.info("尚無數據")
 
+    # 初始化閃卡狀態
+    if 'flash_q' not in st.session_state:
+        st.session_state.flash_q = random.choice(all_words)
+        st.session_state.is_flipped = False
+
+    q = st.session_state.flash_q
+    card_style = get_card_style(q['cat'])
+
+    # --- 閃卡正面 (顯示單字) ---
+    st.markdown(f"{card_style}<h1 style='color: #333;'>{q['word']}</h1><p>{q['cat']}</p></div>", unsafe_allow_html=True)
+
+    # --- 翻面按鈕 ---
+    if not st.session_state.is_flipped:
+        if st.button("🔄 翻轉卡片看答案", use_container_width=True):
+            st.session_state.is_flipped = True
+            st.rerun()
+    else:
+        # --- 閃卡背面 (顯示解析) ---
+        st.markdown(f"""
+        <div style="background-color: #f1f1f1; padding: 20px; border-radius: 10px; border-left: 5px solid #007bff;">
+            <p><b>拆解：</b> <code>{q['breakdown']}</code></p>
+            <p><b>含義：</b> {q['definition']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.write("---")
+        st.write("這題你掌握了嗎？")
+        col1, col2 = st.columns(2)
+        
+        if col1.button("❌ 還不熟 (再排一次)", use_container_width=True):
+            # 這裡以後可以串接演算法，現在先簡單隨機換題
+            del st.session_state.flash_q
+            st.session_state.is_flipped = False
+            st.rerun()
+            
+        if col2.button("✅ 記住了 (下一題)", use_container_width=True):
+            st.balloons()
+            del st.session_state.flash_q
+            st.session_state.is_flipped = False
+            st.rerun()
 def get_card_style(category_name):
     """根據類別名稱決定顏色"""
     colors = {
