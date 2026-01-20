@@ -218,26 +218,7 @@ def ui_quiz_page(data):
             del st.session_state.flash_q
             st.session_state.is_flipped = False
             st.rerun()
-def get_card_style(category_name):
-    """根據類別名稱決定顏色"""
-    colors = {
-        "心靈": "#FFD1DC", "科技": "#E0F7FA", 
-        "感知": "#FFF9C4", "動作": "#DCEDC8"
-    }
-    # 如果沒匹配到，預設灰色
-    bg_color = next((v for k, v in colors.items() if k in category_name), "#F5F5F5")
-    
-    return f"""
-    <div style="
-        background-color: {bg_color};
-        padding: 30px;
-        border-radius: 15px;
-        border: 2px solid #333;
-        text-align: center;
-        margin-bottom: 20px;
-        box-shadow: 5px 5px 15px rgba(0,0,0,0.1);
-    ">
-    """
+
 def ui_factory_page():
     st.title("⚙️ 數據管理")
     st.info("請將 AI 生成的標準格式貼在下方，系統會自動處理並同步至 GitHub。")
@@ -276,7 +257,26 @@ def get_stats(data):
             total_words += len(group.get('vocabulary', []))
             
     return total_cats, total_roots, total_words
-
+def get_card_style(category_name):
+    """根據類別名稱決定顏色"""
+    colors = {
+        "心靈": "#FFD1DC", "科技": "#E0F7FA", 
+        "感知": "#FFF9C4", "動作": "#DCEDC8"
+    }
+    # 如果沒匹配到，預設灰色
+    bg_color = next((v for k, v in colors.items() if k in category_name), "#F5F5F5")
+    
+    return f"""
+    <div style="
+        background-color: {bg_color};
+        padding: 30px;
+        border-radius: 15px;
+        border: 2px solid #333;
+        text-align: center;
+        margin-bottom: 20px;
+        box-shadow: 5px 5px 15px rgba(0,0,0,0.1);
+    ">
+    """
 # ==========================================
 # 4. 主程式流程 (Main Entry)
 # ==========================================
