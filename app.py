@@ -75,6 +75,23 @@ def ui_search_page(data, selected_cat):
             with st.expander(f"{v['word']}", expanded=False):
                 st.write(f"結構: `{v['breakdown']}`")
                 st.write(f"釋義: {v['definition']}")
+    # 4. 智慧抽題邏輯
+    if 'flash_q' not in st.session_state:
+        # 如果有陌生字，且隨機機率大於 0.5，就從陌生字裡抽
+        if st.session_state.failed_words and random.random() > 0.5:
+            # 從 all_words 找出屬於 failed_words 的完整物件
+            failed_pool = [w for w in all_words if w['word'] in st.session_state.failed_words]
+            if failed_pool:
+                st.session_state.flash_q = random.choice(failed_pool)
+                st.session_state.is_from_failed = True # 標註這是複習題
+            else:
+                st.session_state.flash_q = random.choice(all_words)
+                st.session_state.is_from_failed = False
+        else:
+            st.session_state.flash_q = random.choice(all_words)
+            st.session_state.is_from_failed = False
+        
+        st.session_state.is_flipped = False
 # 頂部工具列：顯示目前範圍與退出按鈕
     col_t1, col_t2 = st.columns([4, 1])
     col_t1.caption(f"範圍: {st.session_state.selected_quiz_cat}")
