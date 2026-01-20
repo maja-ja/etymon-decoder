@@ -34,23 +34,31 @@ def ui_search_page(data, selected_cat):
     
     found = False
     for cat in filtered_data:
-        # 如果沒搜尋關鍵字，就顯示該分類所有內容；如果有關鍵字，則進行過濾
         for group in cat['root_groups']:
-            root_match = any(query in r.lower() for r in group['roots'])
-            matched_v = [v for v in group['vocabulary'] if query in v['word'].lower()]
+            # 檢查字根是否匹配
+            root_match = any(query in r.lower() for r in group['roots']) if query else False
             
-            if not query or root_match or matched_v:
+            # 檢查單字是否匹配
+            matched_v_list = []
+            if query:
+                matched_v_list = [v for v in group['vocabulary'] if query in v['word'].lower()]
+            
+            # 如果沒有搜尋詞，顯示所有；如果有，則顯示匹配項
+            if not query or root_match or matched_v_list:
                 found = True
                 st.markdown(f"**{cat['category']}** ({' / '.join(group['roots'])})")
+                
                 for v in group['vocabulary']:
-                    # 只有搜尋時才預設展開相關單字
-                    is_target = query and query in v['word'].lower()
+                    # 關鍵修正點：確保 is_target 永遠是布林值
+                    # 只有當使用者有輸入關鍵字，且關鍵字出現在該單字中時，才自動展開
+                    is_target = bool(query and query in v['word'].lower())
+                    
+                    # 如果使用者沒有搜尋，但我們在顯示該分類，則不展開
                     with st.expander(f"{v['word']}", expanded=is_target):
                         st.write(f"結構: `{v['breakdown']}`")
                         st.write(f"釋義: {v['definition']}")
     
     if not found: st.write("未找到匹配項")
-
 def ui_quiz_page(data):
     st.title("記憶卡片")
     
