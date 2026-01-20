@@ -75,50 +75,62 @@ def ui_search_page(data, selected_cat):
             with st.expander(f"{v['word']}", expanded=False):
                 st.write(f"結構: `{v['breakdown']}`")
                 st.write(f"釋義: {v['definition']}")
+def ui_quiz_page(data):
     st.title("記憶卡片")
     
-    all_words = [{**v, "cat": cat['category']} for cat in data for group in cat['root_groups'] for v in group['vocabulary']]
-    if not all_words: return st.write("數據庫空缺")
+    # 1. 取得目前所有單字（扁平化）
+    all_words = []
+    for cat in data:
+        for group in cat.get('root_groups', []):
+            for v in group.get('vocabulary', []):
+                all_words.append({**v, "cat": cat['category']})
+
+    if not all_words: 
+        st.warning("目前範圍內無單字可練習")
+        return
+
+    # 2. 初始化 Session State (加入清空檢查)
+    if 'failed_words' not in st.session_state: 
+        st.session_state.failed_words = set()
     
-    if 'failed_words' not in st.session_state: st.session_state.failed_words = set()
+    # 如果 flash_q 遺失或不合法，則隨機抽一個
     if 'flash_q' not in st.session_state:
         st.session_state.flash_q = random.choice(all_words)
         st.session_state.is_flipped = False
-    
-    q = st.session_state.flash_q
-    is_flipped_class = "flipped" if st.session_state.is_flipped else ""
 
-    flip_css = """
+    q = st.session_state.flash_q
+    
+    # 3. 渲染卡片 (CSS 保持不變)
+    is_flipped_class = "flipped" if st.session_state.is_flipped else ""
+    st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
-    .flip-card { background-color: transparent; width: 100%; height: 350px; perspective: 1000px; font-family: 'Inter', sans-serif; }
-    .flip-card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1); transform-style: preserve-3d; }
-    .flipped { transform: rotateY(180deg); }
-    .flip-card-front, .flip-card-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 16px; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #ffffff; border: 1px solid #e1e4e8; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
-    .flip-card-back { transform: rotateY(180deg); padding: 40px; border: 1.5px solid #d1d5da; }
+    .flip-card {{ background-color: transparent; width: 100%; height: 350px; perspective: 1000px; font-family: 'Inter', sans-serif; }}
+    .flip-card-inner {{ position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d; }}
+    .flipped {{ transform: rotateY(180deg); }}
+    .flip-card-front, .flip-card-back {{ position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 16px; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #ffffff; border: 1px solid #e1e4e8; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }}
+    .flip-card-back {{ transform: rotateY(180deg); padding: 40px; border: 1.5px solid #d1d5da; }}
     </style>
-    """
-    st.markdown(flip_css, unsafe_allow_html=True)
-    st.markdown(f"""
     <div class="flip-card">
       <div class="flip-card-inner {is_flipped_class}">
         <div class="flip-card-front">
-          <div style="font-size: 0.75rem; color: #888; letter-spacing: 1px;">{q['cat']}</div>
-          <h1 style="font-size: 3rem; font-weight: 700; margin: 10px 0; color: #1a1a1a;">{q['word']}</h1>
+          <div style="font-size: 0.75rem; color: #888;">{q['cat']}</div>
+          <h1 style="font-size: 3rem; font-weight: 700; margin: 10px 0;">{q['word']}</h1>
           <div style="font-size: 0.7rem; color: #ccc; margin-top: 30px;">TAP TO FLIP</div>
         </div>
         <div class="flip-card-back">
           <div style="text-align: left; width: 100%;">
-            <div style="font-size: 0.8rem; color: #888; margin-bottom: 4px;">結構</div>
+            <div style="font-size: 0.8rem; color: #888;">結構</div>
             <div style="font-family: monospace; font-size: 1.1rem; color: #333; margin-bottom: 24px;">{q['breakdown']}</div>
-            <div style="font-size: 0.8rem; color: #888; margin-bottom: 4px;">釋義</div>
-            <div style="font-size: 1.4rem; font-weight: 700; color: #222;">{q['definition']}</div>
+            <div style="font-size: 0.8rem; color: #888;">釋義</div>
+            <div style="font-size: 1.4rem; font-weight: 700;">{q['definition']}</div>
           </div>
         </div>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
+    # 4. 按鈕邏輯
     st.write("")
     if not st.session_state.is_flipped:
         if st.button("翻轉", use_container_width=True):
@@ -129,19 +141,11 @@ def ui_search_page(data, selected_cat):
         if col1.button("標記陌生", use_container_width=True):
             st.session_state.failed_words.add(q['word'])
             del st.session_state.flash_q
-            st.session_state.is_flipped = False
             st.rerun()
         if col2.button("標記熟練", use_container_width=True):
             st.session_state.failed_words.discard(q['word'])
             del st.session_state.flash_q
-            st.session_state.is_flipped = False
             st.rerun()
-
-    if st.session_state.failed_words:
-        st.divider()
-        st.write(f"目前待克服詞彙: {len(st.session_state.failed_words)}")
-        st.caption(", ".join(list(st.session_state.failed_words)))
-
 # ==========================================
 # 3. 主程序
 # ==========================================
