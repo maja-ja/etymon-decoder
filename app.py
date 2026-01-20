@@ -129,13 +129,16 @@ def ui_quiz_page(data):
     is_flipped_class = "flipped" if st.session_state.is_flipped else ""
     
     # 頂部工具列：顯示目前範圍與退出按鈕
+    # 頂部工具列：顯示目前範圍與退出按鈕
     col_t1, col_t2 = st.columns([4, 1])
     col_t1.caption(f"範圍: {st.session_state.selected_quiz_cat}")
-    if col_t2.button("結束", size="small"):
+    
+    # 移除 size="small" 參數，改用標準按鈕
+    if col_t2.button("結束", use_container_width=True):
         st.session_state.quiz_active = False
-        del st.session_state.flash_q
+        if 'flash_q' in st.session_state:
+            del st.session_state.flash_q
         st.rerun()
-
     st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
