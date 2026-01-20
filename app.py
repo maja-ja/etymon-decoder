@@ -64,8 +64,6 @@ def ui_search_page(data, selected_cat):
             with st.expander(f"{v['word']}", expanded=False):
                 st.write(f"結構: `{v['breakdown']}`")
                 st.write(f"釋義: {v['definition']}")
-import random
-import streamlit as st
 
 def ui_quiz_page(data):
     # 0. 基礎狀態初始化
@@ -145,6 +143,7 @@ def ui_quiz_page(data):
     """ if is_review else ""
 
     # 6. 卡片渲染
+    # 6. 卡片渲染 (修正 HTML 閉合問題)
     st.markdown(f"""
     <style>
     .flip-card {{ background-color: transparent; width: 100%; height: 350px; perspective: 1000px; }}
@@ -157,10 +156,11 @@ def ui_quiz_page(data):
     }}
     .flip-card-back {{ transform: rotateY(180deg); padding: 40px; }}
     </style>
+
     <div class="flip-card">
       <div class="flip-card-inner {is_flipped_class}">
         <div class="flip-card-front">
-          <div style="display: flex; align-items: center;">
+          <div style="display: flex; align-items: center; justify-content: center;">
             <small style="color: #888; letter-spacing: 0.1em;">{q['cat'].upper()}</small>
             {review_tag}
           </div>
