@@ -154,28 +154,59 @@ def ui_quiz_page(data):
 
     q = st.session_state.flash_q
     
+    # 1. 智慧抽題邏輯 (50% 機率抽陌生字)
+    if 'flash_q' not in st.session_state:
+        if st.session_state.failed_words and random.random() > 0.5:
+            # 從當前範圍 (all_words) 中找出屬於陌生清單的字
+            failed_pool = [w for w in all_words if w['word'] in st.session_state.failed_words]
+            if failed_pool:
+                st.session_state.flash_q = random.choice(failed_pool)
+                st.session_state.is_review = True
+            else:
+                st.session_state.flash_q = random.choice(all_words)
+                st.session_state.is_review = False
+        else:
+            st.session_state.flash_q = random.choice(all_words)
+            st.session_state.is_review = False
+        st.session_state.is_flipped = False
+
+    q = st.session_state.flash_q
+    is_review = st.session_state.get('is_review', False)
+    
     # --- 渲染卡片 ---
     is_flipped_class = "flipped" if st.session_state.is_flipped else ""
+    
+    # 複習標籤：如果是複習題，顯示紅色小標記
+    review_tag = '<span style="color: #d73a49; font-weight: bold; margin-left: 8px;">• RE-STUDY</span>' if is_review else ""
+
     st.markdown(f"""
     <style>
     .flip-card {{ background-color: transparent; width: 100%; height: 350px; perspective: 1000px; }}
     .flip-card-inner {{ position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d; }}
     .flipped {{ transform: rotateY(180deg); }}
-    .flip-card-front, .flip-card-back {{ position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 16px; display: flex; flex-direction: column; justify-content: center; align-items: center; background: white; border: 1px solid #e1e4e8; }}
+    .flip-card-front, .flip-card-back {{ 
+        position: absolute; width: 100%; height: 100%; 
+        backface-visibility: hidden; border-radius: 16px; 
+        display: flex; flex-direction: column; justify-content: center; align-items: center; 
+        background: white; border: 1px solid #e1e4e8; 
+    }}
     .flip-card-back {{ transform: rotateY(180deg); padding: 40px; }}
     </style>
     <div class="flip-card">
       <div class="flip-card-inner {is_flipped_class}">
         <div class="flip-card-front">
-          <small style="color: #888;">{q['cat']}</small>
-          <h1 style="font-size: 3rem; margin: 10px 0;">{q['word']}</h1>
+          <div style="font-size: 0.75rem; color: #888; letter-spacing: 0.05em;">
+            {q['cat'].upper()}{review_tag}
+          </div>
+          <h1 style="font-size: 3.2rem; font-weight: 700; margin: 15px 0; color: #1a1a1a;">{q['word']}</h1>
+          <div style="font-size: 0.7rem; color: #ccc; margin-top: 20px;">CLICK TO FLIP</div>
         </div>
         <div class="flip-card-back">
           <div style="text-align: left; width: 100%;">
-            <div style="font-size: 0.8rem; color: #888;">結構</div>
-            <div style="font-family: monospace; margin-bottom: 20px;">{q['breakdown']}</div>
-            <div style="font-size: 0.8rem; color: #888;">釋義</div>
-            <div style="font-size: 1.2rem; font-weight: bold;">{q['definition']}</div>
+            <div style="font-size: 0.8rem; color: #888; margin-bottom: 4px;">STRUCTURE</div>
+            <div style="font-family: 'Roboto Mono', monospace; font-size: 1.1rem; color: #0366d6; margin-bottom: 24px;">{q['breakdown']}</div>
+            <div style="font-size: 0.8rem; color: #888; margin-bottom: 4px;">MEANING</div>
+            <div style="font-size: 1.4rem; font-weight: 700; color: #24292e; line-height: 1.4;">{q['definition']}</div>
           </div>
         </div>
       </div>
