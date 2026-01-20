@@ -183,70 +183,90 @@ def ui_quiz_page(data):
         st.session_state.is_flipped = False
 
     q = st.session_state.flash_q
-
-    # 2. 定義 CSS 翻轉動畫
+# 2. 升級版：去 AI 味的極簡高級感 CSS
     flip_css = """
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
+    
     .flip-card {
       background-color: transparent;
       width: 100%;
-      height: 300px;
+      height: 350px;
       perspective: 1000px;
+      font-family: 'Noto Sans TC', sans-serif;
     }
     .flip-card-inner {
       position: relative;
       width: 100%;
       height: 100%;
-      text-align: center;
-      transition: transform 0.6s;
+      transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
       transform-style: preserve-3d;
     }
-    .flipped {
-      transform: rotateY(180deg);
-    }
+    .flipped { transform: rotateY(180deg); }
+
     .flip-card-front, .flip-card-back {
       position: absolute;
       width: 100%;
       height: 100%;
       -webkit-backface-visibility: hidden;
       backface-visibility: hidden;
+      border-radius: 24px;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      border-radius: 15px;
-      border: 2px solid #333;
-      box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08); /* 柔和陰影 */
+      border: 1px solid rgba(255,255,255,0.3);
     }
+
+    /* 正面：優雅奶油白 */
     .flip-card-front {
-      background-color: #f8f9fa;
-      color: black;
+      background: linear-gradient(135deg, #ffffff 0%, #f3f4f7 100%);
+      color: #2d3436;
     }
+
+    /* 背面：深邃午夜藍或質感灰 (取代那個刺眼的亮藍) */
     .flip-card-back {
-      background-color: #007bff;
-      color: white;
+      background: linear-gradient(135deg, #2d3436 0%, #000000 100%);
+      color: #ffffff;
       transform: rotateY(180deg);
-      padding: 20px;
+      padding: 30px;
+    }
+
+    .card-label {
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      font-size: 0.8rem;
+      color: #636e72;
+      margin-bottom: 10px;
+    }
+    
+    .meaning-text {
+      line-height: 1.6;
+      font-weight: 300;
+      opacity: 0.9;
     }
     </style>
     """
 
-    # 3. 渲染 HTML 卡片
-    is_flipped_class = "flipped" if st.session_state.is_flipped else ""
-    
+    # 3. 渲染 HTML 卡片 (配合上面的新 CSS)
     st.markdown(flip_css, unsafe_allow_html=True)
     st.markdown(f"""
     <div class="flip-card">
       <div class="flip-card-inner {is_flipped_class}">
         <div class="flip-card-front">
-          <small style="color:gray;">{q['cat']}</small>
-          <h1 style="font-size: 3em; margin: 10px 0;">{q['word']}</h1>
-          <p style="color:gray;">點擊下方按鈕翻轉</p>
+          <div class="card-label">{q['cat']}</div>
+          <h1 style="font-size: 3.5rem; font-weight: 700; margin: 0; color:#2d3436;">{q['word']}</h1>
+          <div style="margin-top:20px; color:#b2bec3;">Click to Decode</div>
         </div>
         <div class="flip-card-back">
-          <h3>解碼成功！</h3>
-          <p style="font-size: 1.2em;"><b>拆解：</b>{q['breakdown']}</p>
-          <p style="font-size: 1.2em;"><b>含義：</b>{q['definition']}</p>
+          <h2 style="color: #55efc4; margin-bottom: 20px;">✓ 解碼成功</h2>
+          <div class="meaning-text">
+            <p style="font-size: 1.1rem; margin-bottom: 8px;"><b>邏輯拆解</b></p>
+            <p style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px;">{q['breakdown']}</p>
+            <p style="font-size: 1.1rem; margin-top: 20px; margin-bottom: 8px;"><b>核心含義</b></p>
+            <p style="font-size: 1.4rem; color: #fab1a0;">{q['definition']}</p>
+          </div>
         </div>
       </div>
     </div>
