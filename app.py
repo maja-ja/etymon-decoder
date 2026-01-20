@@ -184,6 +184,29 @@ def ui_quiz_page(data):
             st.session_state.failed_words.discard(q['word'])
             if 'flash_q' in st.session_state: del st.session_state.flash_q
             st.rerun()
+    # 7. 控制按鈕
+    st.write("")
+    if not st.session_state.is_flipped:
+        if st.button("查看答案", use_container_width=True):
+            st.session_state.is_flipped = True
+            st.rerun()
+    else:
+        # 當卡片翻開時，顯示三個按鈕
+        c1, c2, c3 = st.columns([1, 1, 1])
+        
+        if c1.button("標記陌生", use_container_width=True):
+            st.session_state.failed_words.add(q['word'])
+            if 'flash_q' in st.session_state: del st.session_state.flash_q
+            st.rerun()
+            
+        if c2.button("翻回正面", use_container_width=True):
+            st.session_state.is_flipped = False
+            st.rerun()
+            
+        if c3.button("標記熟練", use_container_width=True):
+            st.session_state.failed_words.discard(q['word'])
+            if 'flash_q' in st.session_state: del st.session_state.flash_q
+            st.rerun()
 # ==========================================
 # 3. 主程序
 # ==========================================
