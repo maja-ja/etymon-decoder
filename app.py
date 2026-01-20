@@ -76,32 +76,66 @@ def ui_search_page(data, selected_cat):
                 st.write(f"結構: `{v['breakdown']}`")
                 st.write(f"釋義: {v['definition']}")
 def ui_quiz_page(data):
+    # 1. 設置啟動狀態
+    if 'quiz_active' not in st.session_state:
+        st.session_state.quiz_active = False
+
+    # 2. 初始畫面：顯示選單與開始按鈕
+    if not st.session_state.quiz_active:
+        st.title("記憶卡片")
+        st.write("準備開始練習。選擇特定分類或直接開始。")
+        
+        # 分類選擇
+        categories = ["全部隨機"] + sorted([c['category'] for c in data])
+        selected_quiz_cat = st.selectbox("練習範圍", categories)
+        
+        st.divider()
+        if st.button("開始練習", use_container_width=True):
+            st.session_state.selected_quiz_cat = selected_quiz_cat
+            st.session_state.quiz_active = True
+            st.rerun()
+        return # 尚未開始，中斷後續卡片渲染
+
+    # 3. 進入練習模式
     st.title("記憶卡片")
     
-    # 1. 取得目前所有單字（扁平化）
+    # 篩選題目池
+    if st.session_state.selected_quiz_cat == "全部隨機":
+        relevant_data = data
+    else:
+        relevant_data = [c for c in data if c['category'] == st.session_state.selected_quiz_cat]
+
     all_words = []
-    for cat in data:
+    for cat in relevant_data:
         for group in cat.get('root_groups', []):
             for v in group.get('vocabulary', []):
                 all_words.append({**v, "cat": cat['category']})
 
-    if not all_words: 
-        st.warning("目前範圍內無單字可練習")
+    if not all_words:
+        st.warning("該範圍內無單字。")
+        if st.button("返回設定"):
+            st.session_state.quiz_active = False
+            st.rerun()
         return
 
-    # 2. 初始化 Session State (加入清空檢查)
-    if 'failed_words' not in st.session_state: 
-        st.session_state.failed_words = set()
-    
-    # 如果 flash_q 遺失或不合法，則隨機抽一個
+    # 4. 初始化單個題目
     if 'flash_q' not in st.session_state:
         st.session_state.flash_q = random.choice(all_words)
         st.session_state.is_flipped = False
 
     q = st.session_state.flash_q
     
-    # 3. 渲染卡片 (CSS 保持不變)
+    # --- 以下為卡片渲染與按鈕邏輯 (保持原本樣式) ---
     is_flipped_class = "flipped" if st.session_state.is_flipped else ""
+    
+    # 頂部工具列：顯示目前範圍與退出按鈕
+    col_t1, col_t2 = st.columns([4, 1])
+    col_t1.caption(f"範圍: {st.session_state.selected_quiz_cat}")
+    if col_t2.button("結束", size="small"):
+        st.session_state.quiz_active = False
+        del st.session_state.flash_q
+        st.rerun()
+
     st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
@@ -130,19 +164,17 @@ def ui_quiz_page(data):
     </div>
     """, unsafe_allow_html=True)
 
-    # 4. 按鈕邏輯
-    st.write("")
     if not st.session_state.is_flipped:
         if st.button("翻轉", use_container_width=True):
             st.session_state.is_flipped = True
             st.rerun()
     else:
-        col1, col2 = st.columns(2)
-        if col1.button("標記陌生", use_container_width=True):
+        c1, c2 = st.columns(2)
+        if c1.button("標記陌生", use_container_width=True):
             st.session_state.failed_words.add(q['word'])
             del st.session_state.flash_q
             st.rerun()
-        if col2.button("標記熟練", use_container_width=True):
+        if c2.button("標記熟練", use_container_width=True):
             st.session_state.failed_words.discard(q['word'])
             del st.session_state.flash_q
             st.rerun()
