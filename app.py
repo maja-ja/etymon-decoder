@@ -85,6 +85,100 @@ def ui_search_page(data, selected_cat):
         if 'flash_q' in st.session_state:
             del st.session_state.flash_q
         st.rerun()
+def ui_quiz_page(data):
+    # 0. 基礎狀態初始化
+    if 'failed_words' not in st.session_state:
+        st.session_state.failed_words = set()
+    if 'quiz_active' not in st.session_state:
+        st.session_state.quiz_active = False
+
+    # 1. 初始設定畫面
+    if not st.session_state.quiz_active:
+        st.title("記憶卡片")
+        categories = ["全部隨機"] + sorted([c['category'] for c in data])
+        selected_quiz_cat = st.selectbox("選擇練習範圍", categories)
+        
+        st.divider()
+        if st.button("開始練習", use_container_width=True):
+            st.session_state.selected_quiz_cat = selected_quiz_cat
+            st.session_state.quiz_active = True
+            st.rerun()
+        return
+
+    # 2. 練習模式：篩選與抽題
+    st.title("記憶卡片")
+    
+    # 點擊結束按鈕
+    col_t1, col_t2 = st.columns([4, 1])
+    col_t1.caption(f"目前範圍: {st.session_state.selected_quiz_cat}")
+    if col_t2.button("結束", use_container_width=True):
+        st.session_state.quiz_active = False
+        if 'flash_q' in st.session_state: del st.session_state.flash_q
+        st.rerun()
+
+    # 準備題目池
+    if st.session_state.selected_quiz_cat == "全部隨機":
+        relevant_data = data
+    else:
+        relevant_data = [c for c in data if c['category'] == st.session_state.selected_quiz_cat]
+
+    all_words = [{**v, "cat": cat['category']} for cat in relevant_data for group in cat.get('root_groups', []) for v in group.get('vocabulary', [])]
+
+    if not all_words:
+        st.warning("查無單字。")
+        if st.button("返回"):
+            st.session_state.quiz_active = False
+            st.rerun()
+        return
+
+    if 'flash_q' not in st.session_state:
+        st.session_state.flash_q = random.choice(all_words)
+        st.session_state.is_flipped = False
+
+    q = st.session_state.flash_q
+    
+    # --- 渲染卡片 ---
+    is_flipped_class = "flipped" if st.session_state.is_flipped else ""
+    st.markdown(f"""
+    <style>
+    .flip-card {{ background-color: transparent; width: 100%; height: 350px; perspective: 1000px; }}
+    .flip-card-inner {{ position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d; }}
+    .flipped {{ transform: rotateY(180deg); }}
+    .flip-card-front, .flip-card-back {{ position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 16px; display: flex; flex-direction: column; justify-content: center; align-items: center; background: white; border: 1px solid #e1e4e8; }}
+    .flip-card-back {{ transform: rotateY(180deg); padding: 40px; }}
+    </style>
+    <div class="flip-card">
+      <div class="flip-card-inner {is_flipped_class}">
+        <div class="flip-card-front">
+          <small style="color: #888;">{q['cat']}</small>
+          <h1 style="font-size: 3rem; margin: 10px 0;">{q['word']}</h1>
+        </div>
+        <div class="flip-card-back">
+          <div style="text-align: left; width: 100%;">
+            <div style="font-size: 0.8rem; color: #888;">結構</div>
+            <div style="font-family: monospace; margin-bottom: 20px;">{q['breakdown']}</div>
+            <div style="font-size: 0.8rem; color: #888;">釋義</div>
+            <div style="font-size: 1.2rem; font-weight: bold;">{q['definition']}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if not st.session_state.is_flipped:
+        if st.button("查看答案", use_container_width=True):
+            st.session_state.is_flipped = True
+            st.rerun()
+    else:
+        c1, c2 = st.columns(2)
+        if c1.button("標記陌生", use_container_width=True):
+            st.session_state.failed_words.add(q['word'])
+            del st.session_state.flash_q
+            st.rerun()
+        if c2.button("標記熟練", use_container_width=True):
+            st.session_state.failed_words.discard(q['word'])
+            del st.session_state.flash_q
+            st.rerun()
 # ==========================================
 # 3. 主程序
 # ==========================================
