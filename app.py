@@ -111,4 +111,44 @@ def ui_quiz_page(data):
         if col2.button("標記熟練", use_container_width=True):
             st.session_state.failed_words.discard(q['word'])
             del st.session_state.flash_q
-            st.session_state.is_
+            st.session_state.is_flipped = False
+            st.rerun()
+
+    if st.session_state.failed_words:
+        st.divider()
+        st.write(f"目前待克服詞彙: {len(st.session_state.failed_words)}")
+        st.caption(", ".join(list(st.session_state.failed_words)))
+
+# ==========================================
+# 3. 主程序
+# ==========================================
+
+def main():
+    st.set_page_config(page_title="Etymon", layout="wide")
+    data = load_db()
+    
+    st.sidebar.title("Etymon")
+    
+    # 導航功能
+    menu_options = ["字根導覽", "記憶卡片"]
+    choice = st.sidebar.radio("功能選單", menu_options)
+    
+    # 分類選單 (僅在導覽頁顯示，或作為全域過濾)
+    st.sidebar.divider()
+    categories = ["全部顯示"] + sorted([c['category'] for c in data])
+    selected_cat = st.sidebar.selectbox("選擇分類", categories)
+    
+    # 數據統計
+    c_count, w_count = get_stats(data)
+    st.sidebar.divider()
+    st.sidebar.write("**統計**")
+    st.sidebar.text(f"分類總數: {c_count}")
+    st.sidebar.text(f"單字總量: {w_count}")
+    
+    if choice == "字根導覽":
+        ui_search_page(data, selected_cat)
+    else:
+        ui_quiz_page(data)
+
+if __name__ == "__main__":
+    main()
