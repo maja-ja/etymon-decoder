@@ -167,36 +167,26 @@ def ui_search_page(data):
                             st.write(f"**含義：** {v['definition']}")
         if not found: st.warning("找不到相關資料。")
 
-def ui_quiz_page(data):
-    st.title("✍️ 學習測驗")
-    all_words = []
-    for cat in data:
-        for group in cat['root_groups']:
-            for v in group['vocabulary']:
-                all_words.append(v)
+def get_card_style(category_name):
+    """根據類別名稱決定顏色"""
+    colors = {
+        "心靈": "#FFD1DC", "科技": "#E0F7FA", 
+        "感知": "#FFF9C4", "動作": "#DCEDC8"
+    }
+    # 如果沒匹配到，預設灰色
+    bg_color = next((v for k, v in colors.items() if k in category_name), "#F5F5F5")
     
-    if not all_words:
-        st.info("資料庫目前是空的，快去投稿吧！")
-        return
-
-    if 'quiz_q' not in st.session_state:
-        st.session_state.quiz_q = random.choice(all_words)
-        st.session_state.quiz_show = False
-
-    q = st.session_state.quiz_q
-    st.subheader(f"挑戰單字：:blue[{q['word']}]")
-    
-    mode = st.radio("你想測驗什麼？", ["中文含義", "拆解邏輯"])
-    if st.button("顯示答案"): st.session_state.quiz_show = True
-    
-    if st.session_state.quiz_show:
-        ans = q['definition'] if mode == "中文含義" else q['breakdown']
-        st.success(f"參考答案：{ans}")
-        if st.button("下一題"):
-            del st.session_state.quiz_q
-            st.session_state.quiz_show = False
-            st.rerun()
-
+    return f"""
+    <div style="
+        background-color: {bg_color};
+        padding: 30px;
+        border-radius: 15px;
+        border: 2px solid #333;
+        text-align: center;
+        margin-bottom: 20px;
+        box-shadow: 5px 5px 15px rgba(0,0,0,0.1);
+    ">
+    """
 def ui_factory_page():
     st.title("⚙️ 數據管理")
     st.info("請將 AI 生成的標準格式貼在下方，系統會自動處理並同步至 GitHub。")
@@ -235,6 +225,7 @@ def get_stats(data):
             total_words += len(group.get('vocabulary', []))
             
     return total_cats, total_roots, total_words
+
 # ==========================================
 # 4. 主程式流程 (Main Entry)
 # ==========================================
