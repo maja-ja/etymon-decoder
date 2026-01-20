@@ -212,7 +212,6 @@ def ui_quiz_page(data):
       </div>
     </div>
     """, unsafe_allow_html=True)
-
     if not st.session_state.is_flipped:
         if st.button("查看答案", use_container_width=True):
             st.session_state.is_flipped = True
