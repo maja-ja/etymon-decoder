@@ -260,5 +260,84 @@ def main():
             ui_medical_page(med_data)
         else:
             st.info("目前資料庫中尚無醫學分類資料。請在 JSON 中新增標籤為 '醫學' 的分類。")
+# ==========================================
+# 4. 管理員功能 (新增)
+# ==========================================
+
+def merge_logic(pending_json):
+    """處理 JSON 合併的核心邏輯"""
+    try:
+        data = load_db()
+        # 確保輸入是串列格式
+        if isinstance(pending_json, dict):
+            pending_list = [pending_json]
+        else:
+            pending_list = pending_json
+
+        for new_cat in pending_list:
+            cat_name = new_cat.get("category")
+            target_cat = next((c for c in data if c["category"] == cat_name), None)
+            
+            if not target_cat:
+                data.append(new_cat)
+            else:
+                for new_group in new_cat.get("root_groups", []):
+                    new_roots = set(new_group["roots"])
+                    target_group = next((g for g in target_cat["root_groups"] 
+                                       if set(g["roots"]) == new_roots), None)
+                    if not target_group:
+                        target_cat["root_groups"].append(new_group)
+                    else:
+                        existing_words = {v["word"] for v in target_group["vocabulary"]}
+                        for v in new_group["vocabulary"]:
+                            if v["word"] not in existing_words:
+                                target_group["vocabulary"].append(v)
+        
+        # 存檔
+        with open(DB_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return True, "數據合併成功！"
+    except Exception as e:
+        return False, f"合併失敗: {str(e)}"
+
+def ui_admin_page():
+    st.title("🛠️ 數據管理後台")
+    st.markdown("在此貼上新的 JSON 數據，系統將自動去重並合併至資料庫。")
+
+    # JSON 輸入區
+    json_input = st.text_area("JSON 數據輸入", height=300, placeholder='{"category": "醫學", "root_groups": [...] }')
+    
+    col1, col2 = st.columns([1, 4])
+    if col1.button("執行合併", type="primary"):
+        if json_input.strip():
+            try:
+                pending_data = json.loads(json_input)
+                success, msg = merge_logic(pending_data)
+                if success:
+                    st.success(msg)
+                    # 重新計算統計數據
+                    st.cache_data.clear() 
+                else:
+                    st.error(msg)
+            except json.JSONDecodeError:
+                st.error("JSON 格式錯誤，請檢查括號與引號。")
+        else:
+            st.warning("請先輸入數據。")
+
+    with st.expander("查看 JSON 格式範例"):
+        st.code("""
+{
+  "category": "醫學術語",
+  "root_groups": [
+    {
+      "roots": ["ophthalm-"],
+      "meaning": "眼睛",
+      "vocabulary": [
+        {"word": "Ophthalmology", "breakdown": "ophthalm- + -ology", "definition": "眼科學"}
+      ]
+    }
+  ]
+}
+        """, language="json")
 if __name__ == "__main__":
     main()
