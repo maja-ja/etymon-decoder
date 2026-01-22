@@ -23,21 +23,15 @@ def get_stats(data):
 # ==========================================
 # 2. UI 組件
 # ==========================================
-# ==========================================
-# 4. 管理員功能 (含密碼保護)
-# ==========================================
 
-# ==========================================
-# 4. 管理員功能 (含密碼保護)
-# ==========================================
+import os
 
 def ui_admin_page():
     st.title("🛠️ 數據管理後台")
     
     # --- 權限驗證 ---
-    ADMIN_PASSWORD = "8787"  # 👈 請在此設定你的密碼
+    ADMIN_PASSWORD = "8787"  # 👈 你的密碼
     
-    # 使用 session_state 紀錄登入狀態，避免每次操作都要重打密碼
     if 'admin_authenticated' not in st.session_state:
         st.session_state.admin_authenticated = False
 
@@ -51,7 +45,7 @@ def ui_admin_page():
                 st.rerun()
             else:
                 st.error("密碼錯誤，請重新輸入。")
-        return # 未通過驗證前，不執行後面的代碼
+        return
 
     # --- 通過驗證後的管理介面 ---
     col_header, col_logout = st.columns([4, 1])
@@ -60,46 +54,60 @@ def ui_admin_page():
         st.session_state.admin_authenticated = False
         st.rerun()
 
-    st.markdown("在此貼上新的 JSON 數據，系統將自動去重並合併至資料庫。")
+    # --- 方案 A：自動合併現有檔案 ---
+    st.subheader("方案 A：自動從 pending_data.json 合併")
+    PENDING_FILE = 'pending_data.json'
+    
+    if st.button("🚀 執行檔案合併", use_container_width=True):
+        if not os.path.exists(PENDING_FILE):
+            st.error(f"❌ 提示：找不到 `{PENDING_FILE}`。請確認檔案已放置於目錄中。")
+        else:
+            try:
+                with open(PENDING_FILE, 'r', encoding='utf-8') as f:
+                    content = json.load(f)
+                
+                # 檢查是否為空內容 (空 list 或 空 dict)
+                if not content or (isinstance(content, list) and len(content) == 0):
+                    st.warning(f"⚠️ 提示：`{PENDING_FILE}` 內沒有數據內容。")
+                else:
+                    success, msg = merge_logic(content) # 呼叫你的合併邏輯
+                    if success:
+                        st.success(f"✅ 成功自檔案合併！{msg}")
+                        # 合併成功後，為了避免重複合併，建議清空該檔案
+                        with open(PENDING_FILE, 'w', encoding='utf-8') as f:
+                            json.dump([], f)
+                        st.info("💡 檔案內容已在合併後自動清空。")
+                        st.cache_data.clear()
+                    else:
+                        st.error(msg)
+            except Exception as e:
+                st.error(f"❌ 處理檔案時發生錯誤: {e}")
 
-    # JSON 輸入區
-    json_input = st.text_area("JSON 數據輸入", height=300, 
+    st.divider()
+
+    # --- 方案 B：原有的貼上 JSON 合併 ---
+    st.subheader("方案 B：手動貼上數據")
+    st.markdown("在此貼上新的 JSON 數據，系統將自動去重並合併。")
+    json_input = st.text_area("JSON 數據輸入", height=200, 
                              placeholder='{"category": "醫學術語", "root_groups": [...] }')
     
-    col1, col2 = st.columns([1, 4])
-    if col1.button("執行合併", type="primary"):
+    if st.button("執行手動合併", type="primary"):
         if json_input.strip():
             try:
                 pending_data = json.loads(json_input)
-                # 呼叫之前寫好的 merge_logic 函數
                 success, msg = merge_logic(pending_data) 
                 if success:
                     st.success(f"✅ {msg}")
-                    # 清除 Streamlit 快取以確保導覽頁看到最新數據
                     st.cache_data.clear() 
                 else:
                     st.error(msg)
             except json.JSONDecodeError:
-                st.error("❌ JSON 格式錯誤，請檢查括號、逗號與雙引號。")
+                st.error("❌ JSON 格式錯誤。")
         else:
-            st.warning("⚠️ 請先輸入數據。")
+            st.warning("⚠️ 貼上內容不能為空。")
 
-    # 幫助說明
-    with st.expander("查看醫學單字 JSON 結構範例"):
-        st.code("""
-{
-  "category": "醫學術語",
-  "root_groups": [
-    {
-      "roots": ["cardi-"],
-      "meaning": "心臟",
-      "vocabulary": [
-        {"word": "Cardiology", "breakdown": "cardi- + -ology", "definition": "心臟病學"}
-      ]
-    }
-  ]
-}
-        """, language="json")
+    with st.expander("查看範例結構"):
+        st.code('{"category": "醫學", "root_groups": [{"roots": ["..."], "meaning": "...", "vocabulary": [...]}]}', language="json")
 def ui_search_page(data, selected_cat):
     st.title("字根導覽")
     
