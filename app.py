@@ -35,7 +35,7 @@ def ui_admin_page():
     st.title("🛠️ 數據管理後台")
     
     # --- 權限驗證 ---
-    ADMIN_PASSWORD = "your_password_here"  # 👈 請在此設定你的密碼
+    ADMIN_PASSWORD = "8787"  # 👈 請在此設定你的密碼
     
     # 使用 session_state 紀錄登入狀態，避免每次操作都要重打密碼
     if 'admin_authenticated' not in st.session_state:
