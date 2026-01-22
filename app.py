@@ -27,11 +27,15 @@ def get_stats(data):
 # 4. 管理員功能 (含密碼保護)
 # ==========================================
 
+# ==========================================
+# 4. 管理員功能 (含密碼保護)
+# ==========================================
+
 def ui_admin_page():
     st.title("🛠️ 數據管理後台")
     
     # --- 權限驗證 ---
-    ADMIN_PASSWORD = 8787 # 👈 請在此設定你的密碼
+    ADMIN_PASSWORD = "your_password_here"  # 👈 請在此設定你的密碼
     
     # 使用 session_state 紀錄登入狀態，避免每次操作都要重打密碼
     if 'admin_authenticated' not in st.session_state:
@@ -91,45 +95,6 @@ def ui_admin_page():
       "meaning": "心臟",
       "vocabulary": [
         {"word": "Cardiology", "breakdown": "cardi- + -ology", "definition": "心臟病學"}
-      ]
-    }
-  ]
-}
-        """, language="json")
-def ui_admin_page():
-    st.title("🛠️ 數據管理後台")
-    st.markdown("在此貼上新的 JSON 數據，系統將自動去重並合併至資料庫。")
-
-    # JSON 輸入區
-    json_input = st.text_area("JSON 數據輸入", height=300, placeholder='{"category": "醫學", "root_groups": [...] }')
-    
-    col1, col2 = st.columns([1, 4])
-    if col1.button("執行合併", type="primary"):
-        if json_input.strip():
-            try:
-                pending_data = json.loads(json_input)
-                success, msg = merge_logic(pending_data)
-                if success:
-                    st.success(msg)
-                    # 重新計算統計數據
-                    st.cache_data.clear() 
-                else:
-                    st.error(msg)
-            except json.JSONDecodeError:
-                st.error("JSON 格式錯誤，請檢查括號與引號。")
-        else:
-            st.warning("請先輸入數據。")
-
-    with st.expander("查看 JSON 格式範例"):
-        st.code("""
-{
-  "category": "醫學術語",
-  "root_groups": [
-    {
-      "roots": ["ophthalm-"],
-      "meaning": "眼睛",
-      "vocabulary": [
-        {"word": "Ophthalmology", "breakdown": "ophthalm- + -ology", "definition": "眼科學"}
       ]
     }
   ]
