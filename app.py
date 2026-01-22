@@ -27,7 +27,7 @@ def get_stats(data):
 import os
 
 def ui_admin_page():
-    st.title("🛠️ 數據管理後台")
+    st.title("數據管理後台")
     
     # --- 權限驗證 ---
     ADMIN_PASSWORD = "8787"  # 👈 你的密碼
@@ -49,7 +49,7 @@ def ui_admin_page():
 
     # --- 通過驗證後的管理介面 ---
     col_header, col_logout = st.columns([4, 1])
-    col_header.markdown("### 📥 數據導入與合併")
+    col_header.markdown("###數據導入與合併")
     if col_logout.button("登出管理台"):
         st.session_state.admin_authenticated = False
         st.rerun()
@@ -58,9 +58,9 @@ def ui_admin_page():
     st.subheader("方案 A：自動從 pending_data.json 合併")
     PENDING_FILE = 'pending_data.json'
     
-    if st.button("🚀 執行檔案合併", use_container_width=True):
+    if st.button("執行檔案合併", use_container_width=True):
         if not os.path.exists(PENDING_FILE):
-            st.error(f"❌ 提示：找不到 `{PENDING_FILE}`。請確認檔案已放置於目錄中。")
+            st.error(f"提示：找不到 `{PENDING_FILE}`。請確認檔案已放置於目錄中。")
         else:
             try:
                 with open(PENDING_FILE, 'r', encoding='utf-8') as f:
@@ -68,20 +68,20 @@ def ui_admin_page():
                 
                 # 檢查是否為空內容 (空 list 或 空 dict)
                 if not content or (isinstance(content, list) and len(content) == 0):
-                    st.warning(f"⚠️ 提示：`{PENDING_FILE}` 內沒有數據內容。")
+                    st.warning(f"提示：`{PENDING_FILE}` 內沒有數據內容。")
                 else:
                     success, msg = merge_logic(content) # 呼叫你的合併邏輯
                     if success:
-                        st.success(f"✅ 成功自檔案合併！{msg}")
+                        st.success(f"成功自檔案合併！{msg}")
                         # 合併成功後，為了避免重複合併，建議清空該檔案
                         with open(PENDING_FILE, 'w', encoding='utf-8') as f:
                             json.dump([], f)
-                        st.info("💡 檔案內容已在合併後自動清空。")
+                        st.info("檔案內容已在合併後自動清空。")
                         st.cache_data.clear()
                     else:
                         st.error(msg)
             except Exception as e:
-                st.error(f"❌ 處理檔案時發生錯誤: {e}")
+                st.error(f"處理檔案時發生錯誤: {e}")
 
     st.divider()
 
