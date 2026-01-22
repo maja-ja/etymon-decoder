@@ -64,6 +64,38 @@ def ui_search_page(data, selected_cat):
             with st.expander(f"{v['word']}", expanded=False):
                 st.write(f"結構: `{v['breakdown']}`")
                 st.write(f"釋義: {v['definition']}")
+def ui_medical_page(med_data):
+    st.title("🏥 醫學術語專業區")
+    st.markdown("醫學單字是由精確的**構詞元件**組成的，掌握字根即可推導出複雜術語。")
+    
+    # 建立側邊欄過濾或上方索引
+    all_med_roots = []
+    for cat in med_data:
+        for group in cat['root_groups']:
+            all_med_roots.append(f"{' / '.join(group['roots'])} → {group['meaning']}")
+    
+    selected_med = st.selectbox("快速定位醫學字根", all_med_roots)
+    
+    st.divider()
+    
+    # 顯示內容
+    for cat in med_data:
+        for group in cat['root_groups']:
+            # 如果符合選取的字根則展開，否則預設折疊
+            label = f"{' / '.join(group['roots'])} → {group['meaning']}"
+            is_expanded = (label == selected_med)
+            
+            with st.expander(f"🧬 核心字根：{label}", expanded=is_expanded):
+                cols = st.columns(2)
+                for i, v in enumerate(group['vocabulary']):
+                    with cols[i % 2]:
+                        st.markdown(f"""
+                        <div style="padding:15px; border-radius:10px; border-left:5px solid #ff4b4b; background-color:#f0f2f6; margin-bottom:10px;">
+                            <h4 style="margin:0; color:#1f77b4;">{v['word']}</h4>
+                            <p style="margin:5px 0; font-size:0.9rem;"><b>拆解：</b><code>{v['breakdown']}</code></p>
+                            <p style="margin:0; font-weight:bold;">釋義：{v['definition']}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
 def ui_quiz_page(data):
     # 0. 基礎狀態初始化
     if 'failed_words' not in st.session_state:
