@@ -201,7 +201,7 @@ def main():
     st.sidebar.title("Etymon")
     
     # 導航功能
-    menu_options = ["字根導覽", "記憶卡片"]
+    menu_options = ["字根導覽", "記憶卡片", "醫學專區"]
     choice = st.sidebar.radio("功能選單", menu_options)
     
     # 分類選單 (僅在導覽頁顯示，或作為全域過濾)
@@ -215,10 +215,18 @@ def main():
     st.sidebar.write("**統計**")
     st.sidebar.text(f"分類總數: {c_count}")
     st.sidebar.text(f"單字總量: {w_count}")
+    # 在 main() 函數中修改導航功能
     
     if choice == "字根導覽":
         ui_search_page(data, selected_cat)
-    else:
+    elif choice == "記憶卡片":
         ui_quiz_page(data)
+    elif choice == "醫學專區":
+        # 直接過濾出醫學分類
+        med_data = [c for c in data if "醫學" in c['category']]
+        if med_data:
+            ui_medical_page(med_data)
+        else:
+            st.info("目前資料庫中尚無醫學分類資料。請在 JSON 中新增標籤為 '醫學' 的分類。")
 if __name__ == "__main__":
     main()
