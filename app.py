@@ -49,7 +49,7 @@ def ui_admin_page():
 
     # --- 通過驗證後的管理介面 ---
     col_header, col_logout = st.columns([4, 1])
-    col_header.markdown("###數據導入與合併")
+    col_header.markdown("數據導入與合併")
     if col_logout.button("登出管理台"):
         st.session_state.admin_authenticated = False
         st.rerun()
