@@ -23,47 +23,79 @@ def get_stats(data):
 # ==========================================
 # 2. UI 組件
 # ==========================================
-
 # ==========================================
-# 4. 管理員功能 (新增)
+# 4. 管理員功能 (含密碼保護)
 # ==========================================
 
-def merge_logic(pending_json):
-    """處理 JSON 合併的核心邏輯"""
-    try:
-        data = load_db()
-        # 確保輸入是串列格式
-        if isinstance(pending_json, dict):
-            pending_list = [pending_json]
-        else:
-            pending_list = pending_json
+def ui_admin_page():
+    st.title("🛠️ 數據管理後台")
+    
+    # --- 權限驗證 ---
+    ADMIN_PASSWORD = "your_password_here"  # 👈 請在此設定你的密碼
+    
+    # 使用 session_state 紀錄登入狀態，避免每次操作都要重打密碼
+    if 'admin_authenticated' not in st.session_state:
+        st.session_state.admin_authenticated = False
 
-        for new_cat in pending_list:
-            cat_name = new_cat.get("category")
-            target_cat = next((c for c in data if c["category"] == cat_name), None)
-            
-            if not target_cat:
-                data.append(new_cat)
+    if not st.session_state.admin_authenticated:
+        st.info("此區域受密碼保護")
+        pwd_input = st.text_input("請輸入管理員密碼", type="password")
+        if st.button("登入"):
+            if pwd_input == ADMIN_PASSWORD:
+                st.session_state.admin_authenticated = True
+                st.success("身分驗證成功！")
+                st.rerun()
             else:
-                for new_group in new_cat.get("root_groups", []):
-                    new_roots = set(new_group["roots"])
-                    target_group = next((g for g in target_cat["root_groups"] 
-                                       if set(g["roots"]) == new_roots), None)
-                    if not target_group:
-                        target_cat["root_groups"].append(new_group)
-                    else:
-                        existing_words = {v["word"] for v in target_group["vocabulary"]}
-                        for v in new_group["vocabulary"]:
-                            if v["word"] not in existing_words:
-                                target_group["vocabulary"].append(v)
-        
-        # 存檔
-        with open(DB_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        return True, "數據合併成功！"
-    except Exception as e:
-        return False, f"合併失敗: {str(e)}"
+                st.error("密碼錯誤，請重新輸入。")
+        return # 未通過驗證前，不執行後面的代碼
 
+    # --- 通過驗證後的管理介面 ---
+    col_header, col_logout = st.columns([4, 1])
+    col_header.markdown("### 📥 數據導入與合併")
+    if col_logout.button("登出管理台"):
+        st.session_state.admin_authenticated = False
+        st.rerun()
+
+    st.markdown("在此貼上新的 JSON 數據，系統將自動去重並合併至資料庫。")
+
+    # JSON 輸入區
+    json_input = st.text_area("JSON 數據輸入", height=300, 
+                             placeholder='{"category": "醫學術語", "root_groups": [...] }')
+    
+    col1, col2 = st.columns([1, 4])
+    if col1.button("執行合併", type="primary"):
+        if json_input.strip():
+            try:
+                pending_data = json.loads(json_input)
+                # 呼叫之前寫好的 merge_logic 函數
+                success, msg = merge_logic(pending_data) 
+                if success:
+                    st.success(f"✅ {msg}")
+                    # 清除 Streamlit 快取以確保導覽頁看到最新數據
+                    st.cache_data.clear() 
+                else:
+                    st.error(msg)
+            except json.JSONDecodeError:
+                st.error("❌ JSON 格式錯誤，請檢查括號、逗號與雙引號。")
+        else:
+            st.warning("⚠️ 請先輸入數據。")
+
+    # 幫助說明
+    with st.expander("查看醫學單字 JSON 結構範例"):
+        st.code("""
+{
+  "category": "醫學術語",
+  "root_groups": [
+    {
+      "roots": ["cardi-"],
+      "meaning": "心臟",
+      "vocabulary": [
+        {"word": "Cardiology", "breakdown": "cardi- + -ology", "definition": "心臟病學"}
+      ]
+    }
+  ]
+}
+        """, language="json")
 def ui_admin_page():
     st.title("🛠️ 數據管理後台")
     st.markdown("在此貼上新的 JSON 數據，系統將自動去重並合併至資料庫。")
