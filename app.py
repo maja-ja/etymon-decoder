@@ -2,412 +2,361 @@ import streamlit as st
 import json
 import os
 import random
+import pandas as pd
+from gtts import gTTS
+import base64
+from io import BytesIO
+from gtts import gTTS
+from streamlit_gsheets import GSheetsConnection
+def speak(text):
+    """最速發音邏輯"""
+    tts = gTTS(text=text, lang='en')
+    fp = BytesIO()
+    tts.write_to_fp(fp)
+    fp.seek(0)
+    audio_base64 = base64.b64encode(fp.read()).decode()
+    # 加入 id 以確保每次渲染都是新的組件，觸發自動播放
+    import time
+    comp_id = int(time.time() * 1000)
+    audio_html = f"""
+        <audio autoplay key="{comp_id}">
+            <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
+        </audio>
+        """
+    st.components.v1.html(audio_html, height=0)
 
 # ==========================================
-# 1. 核心配置
+# 1. 核心配置與雲端同步
 # ==========================================
-DB_FILE = 'etymon_database.json'
+# ==========================================
+# 1. 核心配置與雲端同步
+# ==========================================
 
+# 這是你原本「唯讀」的單字庫資料來源
+SHEET_ID = '1W1ADPyf5gtGdpIEwkxBEsaJ0bksYldf4AugoXnq6Zvg'
+GSHEET_URL = f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv'
+PENDING_FILE = 'pending_data.json'
+# 這是你要「寫入」回報的目標網址 (從 secrets 讀取)
+FEEDBACK_URL = st.secrets.get("feedback_sheet_url")
+
+@st.cache_data(ttl=600)
 def load_db():
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, 'r', encoding='utf-8') as f:
-            try: return json.load(f)
-            except: return []
-    return []
-
-def get_stats(data):
-    total_cats = len(data)
-    total_words = sum(len(g.get('vocabulary', [])) for cat in data for g in cat.get('root_groups', []))
-    return total_cats, total_words
-
-# ==========================================
-# 2. UI 組件
-# ==========================================
-# ==========================================
-# 數據合併核心邏輯
-# ==========================================
-
-def merge_logic(pending_data):
-    """
-    處理 JSON 合併的核心邏輯：
-    1. 支援單一物件 {} 或 物件串列 []
-    2. 自動檢查分類 (category) 是否存在
-    3. 自動檢查字根組 (roots) 是否存在
-    4. 自動對單字 (word) 進行去重
-    """
+    """從 Google Sheets 讀取單字庫 (保持原有的 CSV 讀取方式，速度較快)"""
     try:
-        # 1. 讀取現有資料庫
-        main_db = load_db()
-        
-        # 2. 統一輸入格式為串列
-        if isinstance(pending_data, dict):
-            pending_list = [pending_data]
-        else:
-            pending_list = pending_data
-
-        added_cats = 0
-        added_groups = 0
-        added_words = 0
-
-        for new_cat in pending_list:
-            cat_name = new_cat.get("category")
-            # 尋找現有分類
-            target_cat = next((c for c in main_db if c["category"] == cat_name), None)
-            
-            if not target_cat:
-                main_db.append(new_cat)
-                added_cats += 1
-            else:
-                # 分類已存在，遍歷字根組
-                for new_group in new_cat.get("root_groups", []):
-                    new_roots = set(new_group["roots"])
-                    target_group = next((g for g in target_cat["root_groups"] 
-                                       if set(g["roots"]) == new_roots), None)
-                    
-                    if not target_group:
-                        target_cat["root_groups"].append(new_group)
-                        added_groups += 1
-                    else:
-                        # 字根組已存在，合併單字並去重
-                        existing_words = {v["word"].lower() for v in target_group["vocabulary"]}
-                        for v in new_group["vocabulary"]:
-                            if v["word"].lower() not in existing_words:
-                                target_group["vocabulary"].append(v)
-                                existing_words.add(v["word"].lower())
-                                added_words += 1
-        
-        # 3. 寫回資料庫檔案
-        with open(DB_FILE, 'w', encoding='utf-8') as f:
-            json.dump(main_db, f, ensure_ascii=False, indent=2)
-            
-        summary = f"新增了 {added_cats} 個分類, {added_groups} 組字根, {added_words} 個單字。"
-        return True, summary
-
+        df = pd.read_csv(GSHEET_URL)
+        if df.empty: return []
+        df.columns = [c.strip().lower() for c in df.columns]
+        structured_data = []
+        for cat_name, cat_group in df.groupby('category'):
+            root_groups = []
+            for (roots, meaning), group_df in cat_group.groupby(['roots', 'meaning']):
+                vocabulary = []
+                for _, row in group_df.iterrows():
+                    vocabulary.append({
+                        "word": str(row['word']),
+                        "breakdown": str(row['breakdown']),
+                        "definition": str(row['definition'])
+                    })
+                root_groups.append({
+                    "roots": [r.strip() for r in str(roots).split('/')],
+                    "meaning": str(meaning),
+                    "vocabulary": vocabulary
+                })
+            structured_data.append({"category": str(cat_name), "root_groups": root_groups})
+        return structured_data
     except Exception as e:
-        return False, f"合併過程中發生錯誤: {str(e)}"
-
-def ui_admin_page():
-    st.title("數據管理後台")
-    
-    # --- 權限驗證 ---
-    ADMIN_PASSWORD = "8787"  # 👈 你的密碼
-    
-    if 'admin_authenticated' not in st.session_state:
-        st.session_state.admin_authenticated = False
-
-    if not st.session_state.admin_authenticated:
-        st.info("此區域受密碼保護")
-        pwd_input = st.text_input("請輸入管理員密碼", type="password")
-        if st.button("登入"):
-            if pwd_input == ADMIN_PASSWORD:
-                st.session_state.admin_authenticated = True
-                st.success("身分驗證成功！")
-                st.rerun()
-            else:
-                st.error("密碼錯誤，請重新輸入。")
-        return
-
-    # --- 通過驗證後的管理介面 ---
-    col_header, col_logout = st.columns([4, 1])
-    col_header.markdown("數據導入與合併")
-    if col_logout.button("登出管理台"):
-        st.session_state.admin_authenticated = False
-        st.rerun()
-
-    # --- 方案 A：自動合併現有檔案 ---
-    st.subheader("方案 A：自動從 pending_data.json 合併")
-    PENDING_FILE = 'pending_data.json'
-    
-    if st.button("執行檔案合併", use_container_width=True):
-        if not os.path.exists(PENDING_FILE):
-            st.error(f"提示：找不到 `{PENDING_FILE}`。請確認檔案已放置於目錄中。")
-        else:
-            try:
-                with open(PENDING_FILE, 'r', encoding='utf-8') as f:
-                    content = json.load(f)
-                
-                # 檢查是否為空內容 (空 list 或 空 dict)
-                if not content or (isinstance(content, list) and len(content) == 0):
-                    st.warning(f"提示：`{PENDING_FILE}` 內沒有數據內容。")
-                else:
-                    success, msg = merge_logic(content) # 呼叫你的合併邏輯
-                    if success:
-                        st.success(f"成功自檔案合併！{msg}")
-                        # 合併成功後，為了避免重複合併，建議清空該檔案
-                        with open(PENDING_FILE, 'w', encoding='utf-8') as f:
-                            json.dump([], f)
-                        st.info("檔案內容已在合併後自動清空。")
-                        st.cache_data.clear()
-                    else:
-                        st.error(msg)
-            except Exception as e:
-                st.error(f"處理檔案時發生錯誤: {e}")
-
-    st.divider()
-
-    # --- 方案 B：原有的貼上 JSON 合併 ---
-    st.subheader("方案 B：手動貼上數據")
-    st.markdown("在此貼上新的 JSON 數據，系統將自動去重並合併。")
-    json_input = st.text_area("JSON 數據輸入", height=200, 
-                             placeholder='{"category": "醫學術語", "root_groups": [...] }')
-    
-    if st.button("執行手動合併", type="primary"):
-        if json_input.strip():
-            try:
-                pending_data = json.loads(json_input)
-                success, msg = merge_logic(pending_data) 
-                if success:
-                    st.success(f"✅ {msg}")
-                    st.cache_data.clear() 
-                else:
-                    st.error(msg)
-            except json.JSONDecodeError:
-                st.error("❌ JSON 格式錯誤。")
-        else:
-            st.warning("⚠️ 貼上內容不能為空。")
-
-    with st.expander("查看範例結構"):
-        st.code('{"category": "醫學", "root_groups": [{"roots": ["..."], "meaning": "...", "vocabulary": [...]}]}', language="json")
-def ui_search_page(data, selected_cat):
-    st.title("字根導覽")
-    
-    # 1. 根據大類過濾
-    relevant_cats = data if selected_cat == "全部顯示" else [c for c in data if c['category'] == selected_cat]
-    
-    root_options = []
-    root_to_group = {}
-    for cat in relevant_cats:
-        for group in cat.get('root_groups', []):
-            label = f"{' / '.join(group['roots'])} ({group['meaning']})"
-            root_options.append(label)
-            root_to_group[label] = (cat['category'], group)
-    
-    # 2. 字根快選
-    selected_root_label = st.selectbox(f"字根選單 ({selected_cat})", ["顯示全部"] + root_options)
-    
-    st.divider()
-
-    # 3. 顯示邏輯 (移除所有 random.choice 相關代碼)
-    if selected_root_label == "顯示全部":
-        query = st.text_input("檢索單字", placeholder="在目前範圍內搜尋...").lower().strip()
-        for label in root_options:
-            cat_name, group = root_to_group[label]
-            matched_v = [v for v in group['vocabulary'] if query in v['word'].lower()] if query else group['vocabulary']
-            
-            if matched_v:
-                st.markdown(f"### {label}")
-                for v in matched_v:
-                    # 確保 is_expanded 是布林值
-                    with st.expander(f"{v['word']}", expanded=bool(query)):
-                        st.write(f"結構: `{v['breakdown']}`")
-                        st.write(f"釋義: {v['definition']}")
-    else:
-        # 顯示單一字根組
-        cat_name, group = root_to_group[selected_root_label]
-        st.subheader(f"分類：{cat_name}")
-        for v in group['vocabulary']:
-            with st.expander(f"{v['word']}", expanded=False):
-                st.write(f"結構: `{v['breakdown']}`")
-                st.write(f"釋義: {v['definition']}")
-def ui_medical_page(med_data):
-    st.title("醫學術語專業區")
-    st.markdown("醫學單字是由精確的**構詞元件**組成的，掌握字根即可推導出複雜術語。")
-    
-    # 建立側邊欄過濾或上方索引
-    all_med_roots = []
-    for cat in med_data:
-        for group in cat['root_groups']:
-            all_med_roots.append(f"{' / '.join(group['roots'])} → {group['meaning']}")
-    
-    selected_med = st.selectbox("快速定位醫學字根", all_med_roots)
-    
-    st.divider()
-    
-    # 顯示內容
-    for cat in med_data:
-        for group in cat['root_groups']:
-            # 如果符合選取的字根則展開，否則預設折疊
-            label = f"{' / '.join(group['roots'])} → {group['meaning']}"
-            is_expanded = (label == selected_med)
-            
-            with st.expander(f"核心字根：{label}", expanded=is_expanded):
-                cols = st.columns(2)
-                for i, v in enumerate(group['vocabulary']):
-                    with cols[i % 2]:
-                        st.markdown(f"""
-                        <div style="padding:15px; border-radius:10px; border-left:5px solid #ff4b4b; background-color:#f0f2f6; margin-bottom:10px;">
-                            <h4 style="margin:0; color:#1f77b4;">{v['word']}</h4>
-                            <p style="margin:5px 0; font-size:0.9rem;"><b>拆解：</b><code>{v['breakdown']}</code></p>
-                            <p style="margin:0; font-weight:bold;">釋義：{v['definition']}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-def ui_quiz_page(data):
-    # 0. 基礎狀態初始化
-    if 'failed_words' not in st.session_state:
-        st.session_state.failed_words = set()
-    if 'quiz_active' not in st.session_state:
-        st.session_state.quiz_active = False
-
-    # 1. 初始設定畫面
-    if not st.session_state.quiz_active:
-        st.title("記憶卡片")
-        categories = ["全部隨機"] + sorted([c['category'] for c in data])
-        selected_quiz_cat = st.selectbox("選擇練習範圍", categories)
+        st.error(f"資料庫載入失敗: {e}")
+        return []
+def save_feedback_to_gsheet(word, feedback_type, comment):
+    try:
+        # 1. 建立連線
+        conn = st.connection("gsheets", type=GSheetsConnection)
         
-        st.divider()
-        if st.button("開始練習", use_container_width=True):
-            st.session_state.selected_quiz_cat = selected_quiz_cat
-            st.session_state.quiz_active = True
-            if 'flash_q' in st.session_state: del st.session_state.flash_q
-            st.rerun()
+        # 2. 強制不使用快取讀取資料 (ttl=0)
+        df = conn.read(spreadsheet=FEEDBACK_URL, ttl=0)
+        
+        # 2. 建立新資料列
+        new_row = pd.DataFrame([{
+            "timestamp": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "word": word,
+            "type": feedback_type,
+            "comment": comment,
+            "status": "pending"
+        }])
+        
+        # 3. 合併並更新
+        updated_df = pd.concat([df, new_row], ignore_index=True)
+        
+        # 4. 執行寫入 (關鍵：這一步需要 Service Account 權限)
+        conn.update(spreadsheet=FEEDBACK_URL, data=updated_df)
+        
+        st.success(f"✅ 單字「{word}」的回報已同步至雲端！")
+        
+    except Exception as e:
+        # 如果還是噴錯，顯示更詳細的訊息
+        st.error(f"❌ 雲端同步失敗。")
+        st.info("請檢查 Streamlit Cloud 的 Secrets 是否已包含完整的 [connections.gsheets] 區段內容。")
+        st.caption(f"錯誤詳情: {e}")
+def get_stats(data):
+    """計算單字總數"""
+    if not data: return 0, 0
+    total_words = sum(len(g.get('vocabulary', [])) for cat in data for g in cat.get('root_groups', []))
+    return len(data), total_words
+# ==========================================
+# 2. 通用與專業區域組件
+# ==========================================
+def ui_domain_page(domain_data, title, theme_color, bg_color):
+    st.title(title)
+    if not domain_data:
+        st.info("目前資料庫中尚未建立相關分類。")
         return
 
-    # 2. 練習模式：頂部工具欄
-    st.title("記憶卡片")
-    col_t1, col_t2 = st.columns([4, 1])
-    col_t1.caption(f"目前範圍: {st.session_state.selected_quiz_cat}")
-    if col_t2.button("結束", use_container_width=True):
-        st.session_state.quiz_active = False
+    # 提取字根
+    root_map = {}
+    for cat in domain_data:
+        for group in cat.get('root_groups', []):
+            label = f"{'/'.join(group['roots'])} ({group['meaning']})"
+            if label not in root_map: root_map[label] = group
+    
+    selected_label = st.selectbox("選擇要複習的字根", sorted(root_map.keys()), key=title)
+    
+    if selected_label:
+        group = root_map[selected_label]
+        for v in group.get('vocabulary', []):
+            with st.container():
+                # 修改欄位比例，為回報按鈕留出空間
+                col_word, col_play, col_report = st.columns([3, 1, 1])
+                
+                with col_word:
+                    display_color = "#FFD700" if "法律" in title else theme_color
+                    st.markdown(f'<div style="font-size: 2.2em; font-weight: bold; color: {display_color};">{v["word"]}</div>', unsafe_allow_html=True)
+                
+                with col_play:
+                    if st.button("播放", key=f"v_{v['word']}_{title}"):
+                        speak(v['word'])
+                
+                with col_report:
+                    # 呼叫新建立的回報組件
+                    ui_feedback_component(v['word'])
+                
+                # 這裡針對拆解 (breakdown) 使用金色與深色背景框
+                st.markdown(f"""
+                    <div style="margin-bottom: 15px;">
+                        <span style="font-size: 1.1em; color: #888;">構造拆解：</span>
+                        <span style="font-size: 1.6em; color: #FFD700; font-family: 'Courier New', monospace; font-weight: bold; background: #888; padding: 4px 12px; border-radius: 8px; border: 1px solid #FFD700; text-shadow: 1px 1px 2px black;">
+                            {v['breakdown']}
+                        </span>
+                        <div style="font-size: 1.3em; color: #DDD; margin-top: 10px;"><b>中文定義：</b> {v['definition']}</div>
+                    </div>
+                    <hr style="border-color: #444;">
+                """, unsafe_allow_html=True)
+def ui_feedback_component(word):
+    """單字錯誤回報彈窗"""
+    with st.popover("錯誤回報"):
+        st.write(f"回報單字：**{word}**")
+        f_type = st.selectbox("錯誤類型", ["發音錯誤", "拆解有誤", "中文釋義錯誤", "分類錯誤", "其他"], key=f"err_type_{word}")
+        f_comment = st.text_area("詳細說明", placeholder="請描述正確的資訊...", key=f"err_note_{word}")
+        
+        if st.button("提交回報", key=f"err_btn_{word}"):
+            if f_comment.strip() == "":
+                st.error("請填寫說明內容")
+            else:
+                save_feedback_to_gsheet(word, f_type, f_comment)
+                st.success("感謝回報！管理員將會盡快修正。")
+def ui_quiz_page(data):
+    st.title("學習區 (Flashcards)")
+    cat_options_map = {"全部練習": "全部練習"}
+    cat_options_list = ["全部練習"]
+    for c in data:
+        w_count = sum(len(g['vocabulary']) for g in c['root_groups'])
+        display_name = f"{c['category']} ({w_count} 字)"
+        cat_options_list.append(display_name)
+        cat_options_map[display_name] = c['category']
+    
+    selected_raw = st.selectbox("選擇練習範圍", sorted(cat_options_list))
+    selected_cat = cat_options_map[selected_raw]
+
+    if st.session_state.get('last_quiz_cat') != selected_cat:
+        st.session_state.last_quiz_cat = selected_cat
         if 'flash_q' in st.session_state: del st.session_state.flash_q
         st.rerun()
 
-    # 3. 準備題目池
-    if st.session_state.selected_quiz_cat == "全部隨機":
-        relevant_data = data
-    else:
-        relevant_data = [c for c in data if c['category'] == st.session_state.selected_quiz_cat]
-
-    all_words = [{**v, "cat": cat['category']} for cat in relevant_data 
-                 for group in cat.get('root_groups', []) 
-                 for v in group.get('vocabulary', [])]
-
-    if not all_words:
-        st.warning("查無單字。")
-        if st.button("返回"):
-            st.session_state.quiz_active = False
-            st.rerun()
-        return
-
-    # 4. 智慧抽題邏輯
     if 'flash_q' not in st.session_state:
-        st.session_state.is_review = False
-        if st.session_state.failed_words and random.random() > 0.5:
-            failed_pool = [w for w in all_words if w['word'] in st.session_state.failed_words]
-            if failed_pool:
-                st.session_state.flash_q = random.choice(failed_pool)
-                st.session_state.is_review = True
-            else:
-                st.session_state.flash_q = random.choice(all_words)
+        if selected_cat == "全部練習":
+            pool = [{**v, "cat": c['category']} for c in data for g in c['root_groups'] for v in g['vocabulary']]
         else:
-            st.session_state.flash_q = random.choice(all_words)
-        st.session_state.is_flipped = False
+            pool = [{**v, "cat": c['category']} for c in data if c['category'] == selected_cat for g in c['root_groups'] for v in g['vocabulary']]
+        
+        if not pool: st.warning("此範圍無資料"); return
+        st.session_state.flash_q = random.choice(pool)
+        st.session_state.flipped = False
+        st.session_state.voiced = False # 用來控制是否已經唸過
 
     q = st.session_state.flash_q
-    is_review = st.session_state.get('is_review', False)
-    is_flipped_class = "flipped" if st.session_state.is_flipped else ""
-
-    # 建立複習標籤
-    review_tag = '<span style="background-color:#ffeef0;color:#d73a49;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:bold;margin-left:10px;border:1px solid #f9c2c7;">複習</span>' if is_review else ""
-
-    # 5. 卡片渲染
-    card_html = f"""
-    <style>
-    .flip-card {{ background-color: transparent; width: 100%; height: 350px; perspective: 1000px; }}
-    .flip-card-inner {{ position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d; }}
-    .flipped {{ transform: rotateY(180deg); }}
-    .flip-card-front, .flip-card-back {{ 
-        position: absolute; width: 100%; height: 100%; backface-visibility: hidden; 
-        border-radius: 16px; display: flex; flex-direction: column; justify-content: center; align-items: center; 
-        background: white; border: 1px solid #e1e4e8; box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    }}
-    .flip-card-back {{ transform: rotateY(180deg); padding: 40px; }}
-    </style>
-    <div class="flip-card">
-        <div class="flip-card-inner {is_flipped_class}">
-            <div class="flip-card-front">
-                <div style="display:flex; align-items:center; justify-content:center;">
-                    <small style="color:#888;">{q['cat'].upper()}</small>{review_tag}
-                </div>
-                <h1 style="font-size:3.2rem; font-weight:700; margin:15px 0; color:#1a1a1a;">{q['word']}</h1>
-                <div style="font-size:0.7rem; color:#ccc;">等待翻轉...</div>
-            </div>
-            <div class="flip-card-back">
-                <div style="text-align:left; width:100%;">
-                    <div style="font-size:0.8rem; color:#888;">STRUCTURE</div>
-                    <div style="font-family:monospace; font-size:1.1rem; color:#0366d6; margin-bottom:20px;">{q['breakdown']}</div>
-                    <div style="font-size:0.8rem; color:#888;">MEANING</div>
-                    <div style="font-size:1.4rem; font-weight:700; color:#24292e;">{q['definition']}</div>
-                </div>
-            </div>
+    st.markdown(f"""
+        <div style="text-align: center; padding: 50px; border: 3px solid #eee; border-radius: 25px; background: #fdfdfd; margin-bottom: 20px;">
+            <p style="color: #999;">[ {q['cat']} ]</p>
+            <h1 style="font-size: 4.5em; margin: 0; color: #1E88E5;">{q['word']}</h1>
         </div>
-    </div>
-    """
-    st.markdown(card_html, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-    # 6. 控制按鈕 (整合翻回功能)
-    st.write("")
-    if not st.session_state.is_flipped:
-        if st.button("查看答案", use_container_width=True):
-            st.session_state.is_flipped = True
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col1:
+        if st.button("查看答案", use_container_width=True): 
+            st.session_state.flipped = True
+    with col2:
+        # 這個按鈕點了就會「一直唸」
+        if st.button("播放發音", use_container_width=True):
+            speak(q['word'])
+    with col3:
+        if st.button("➡️ 下一題", use_container_width=True): 
+            if 'flash_q' in st.session_state: del st.session_state.flash_q
             st.rerun()
-    else:
-        # 當卡片翻開時，顯示三個功能按鈕
-        c1, c2, c3 = st.columns([1, 1, 1])
+
+    if st.session_state.get('flipped'):
+        # 翻開答案時自動朗讀
+        if not st.session_state.get('voiced'):
+            speak(q['word'])
+            st.session_state.voiced = True
+            
+        # 根據是否為法律區，動態調整顏色
+        is_legal = "法律" in q['cat']
+        bg_color = "#1A1A1A" if is_legal else "#E3F2FD"  # 法律用深黑，其他用淺藍
+        label_color = "#FFD700" if is_legal else "#1E88E5" # 法律用金色，其他用藍色
+        text_color = "#FFFFFF" if is_legal else "#000000"  # 法律用白色文字，其他用黑色
+        breakdown_color = "#FFD700" if is_legal else "#D32F2F" # 法律拆解用金色，其他用紅色
+
+        st.markdown(f"""
+            <div style="background-color: {bg_color}; padding: 25px; border-radius: 15px; margin-top: 20px; border-left: 10px solid {label_color}; border: 1px solid {label_color};">
+                <p style="font-size: 2em; margin-bottom: 10px; color: {text_color};">
+                    <b style="color: {label_color};">拆解：</b> 
+                    <span style="color: {breakdown_color}; font-family: monospace; font-weight: bold;">{q['breakdown']}</span>
+                </p>
+                <p style="font-size: 1.5em; color: {text_color};">
+                    <b style="color: {label_color};">釋義：</b> {q['definition']}
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+def ui_search_page(data, selected_cat):
+    st.title("搜尋與瀏覽")
+    relevant = data if selected_cat == "全部顯示" else [c for c in data if c['category'] == selected_cat]
+    query = st.text_input("搜尋單字或字根...").strip().lower()
+    for cat in relevant:
+        for group in cat.get('root_groups', []):
+            matched = [v for v in group['vocabulary'] if query in v['word'].lower() or any(query in r.lower() for r in group['roots'])]
+            if matched:
+                with st.expander(f"{'/'.join(group['roots'])} ({group['meaning']})", expanded=bool(query)):
+                    for v in matched:
+                        st.markdown(f"**{v['word']}** [{v['breakdown']}]: {v['definition']}")
+def ui_admin_page(data):
+    st.title("🛡️ 管理區 (Cloud Admin)")
+    
+    # 1. 密碼驗證 (使用 st.secrets)
+    correct_password = st.secrets.get("admin_password", "8787")
+    if not st.session_state.get('admin_auth'):
+        pw_input = st.text_input("管理員密碼", type="password")
+        if pw_input == correct_password:
+            st.session_state.admin_auth = True
+            st.rerun()
+        elif pw_input != "":
+            st.error("密碼錯誤")
+        return
+
+    # 2. 數據統計
+    st.metric("資料庫單字總量", f"{get_stats(data)[1]} 單字")
+    
+    # 3. 備份功能
+    if st.button("手動備份 CSV (下載完整單字庫)"):
+        flat = [{"category": c['category'], "roots": "/".join(g['roots']), "meaning": g['meaning'], **v} 
+                for c in data for g in c['root_groups'] for v in g['vocabulary']]
+        st.download_button("確認下載 CSV", pd.DataFrame(flat).to_csv(index=False).encode('utf-8-sig'), "etymon_backup.csv")
+
+    st.divider()
+
+    # 4. 讀取雲端回報 (取代舊的 PENDING_FILE 邏輯)
+    st.subheader("📝 雲端待處理回報")
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        # 使用你在 Section 1 定義的 FEEDBACK_URL
+        df_pending = conn.read(spreadsheet=FEEDBACK_URL)
         
-        if c1.button("標記陌生", use_container_width=True):
-            st.session_state.failed_words.add(q['word'])
-            if 'flash_q' in st.session_state: del st.session_state.flash_q
-            st.rerun()
+        if not df_pending.empty:
+            st.dataframe(df_pending, use_container_width=True)
             
-        if c2.button("翻回正面", use_container_width=True):
-            st.session_state.is_flipped = False
-            st.rerun()
-            
-        if c3.button("標記熟練", use_container_width=True):
-            st.session_state.failed_words.discard(q['word'])
-            if 'flash_q' in st.session_state: del st.session_state.flash_q
-            st.rerun()
-# ==========================================
-# 3. 主程序
-# ==========================================
+            st.info("💡 提示：如需修改或刪除回報，請直接前往 Google Sheets 進行操作。")
+            if st.button("重新整理雲端數據"):
+                st.rerun()
+        else:
+            st.info("目前沒有待處理的回報。")
+    except Exception as e:
+        st.error(f"讀取雲端回報失敗，請檢查 Service Account 權限與 FEEDBACK_URL。")
+        st.caption(f"錯誤詳情: {e}")
 
+    # 5. 登出
+    if st.sidebar.button("登出管理區"):
+        st.session_state.admin_auth = False
+        st.rerun()
+# ==========================================
+# 3. 主程序入口
+# ==========================================
 def main():
-    st.set_page_config(page_title="Etymon", layout="wide")
+    st.set_page_config(page_title="Etymon Decoder", layout="wide")
     data = load_db()
     
-    st.sidebar.title("Etymon")
+    # 1. 側邊欄標題
+    st.sidebar.title("tymon Decoder")
     
-    # 導航功能
-    menu_options = ["字根導覽", "記憶卡片", "醫學專區", "管理後台"]
-    choice = st.sidebar.radio("功能選單", menu_options)
+    # 2. 導覽選單
+    menu = st.sidebar.radio("導航", ["字根區", "學習區", "高中 7000 區", "醫學區", "法律區", "人工智慧區", "心理與社會區", "生物與自然區", "管理區"])
     
-    # 分類選單 (僅在導覽頁顯示，或作為全域過濾)
     st.sidebar.divider()
-    categories = ["全部顯示"] + sorted([c['category'] for c in data])
-    selected_cat = st.sidebar.selectbox("選擇分類", categories)
     
-    # 數據統計
-    c_count, w_count = get_stats(data)
-    st.sidebar.divider()
-    st.sidebar.write("**統計**")
-    st.sidebar.text(f"分類總數: {c_count}")
-    st.sidebar.text(f"單字總量: {w_count}")
-    # 在 main() 函數中修改導航功能
+    # 3. 強制刷新按鈕
+    if st.sidebar.button("強制刷新雲端數據", use_container_width=True): 
+        st.cache_data.clear()
+        st.rerun()
     
-    if choice == "字根導覽":
-        ui_search_page(data, selected_cat)
-    elif choice == "記憶卡片":
+    # 4. 在刷新按鈕下方顯示單字總量 (使用大字體樣式)
+    _, total_words = get_stats(data)
+    st.sidebar.markdown(f"""
+        <div style="text-align: center; padding: 10px; background-color: #f0f2f6; border-radius: 10px; margin-top: 10px;">
+            <p style="margin: 0; font-size: 0.9em; color: #000;">資料庫總計</p>
+            <p style="margin: 0; font-size: 1.8em; font-weight: bold; color: #000;">{total_words} <span style="font-size: 0.5em;">Words</span></p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # --- 以下為各分頁呼叫邏輯 (維持不變) ---
+    if menu == "字根區":
+        cats = ["全部顯示"] + sorted(list(set(c['category'] for c in data)))
+        ui_search_page(data, st.sidebar.selectbox("分類篩選", cats))
+    elif menu == "學習區":
         ui_quiz_page(data)
-    elif choice == "醫學專區":
-        # 直接過濾出醫學分類
-        med_data = [c for c in data if "醫學" in c['category']]
-        if med_data:
-            ui_medical_page(med_data)
-        else:
-            st.info("目前資料庫中尚無醫學分類資料。請在 JSON 中新增標籤為 '醫學' 的分類。")
-    elif choice == "管理後台":
-        ui_admin_page() # 呼叫新功能
-
-
+    elif menu == "高中 7000 區":
+        hs = [c for c in data if any(k in c['category'] for k in ["高中", "7000"])]
+        count = sum(len(g['vocabulary']) for c in hs for g in c['root_groups'])
+        ui_domain_page(hs, f"高中核心區 ({count} 字)", "#2E7D32", "#E8F5E9")
+    elif menu == "醫學區":
+        med = [c for c in data if "醫學" in c['category']]
+        count = sum(len(g['vocabulary']) for c in med for g in c['root_groups'])
+        ui_domain_page(med, f"醫學專業區 ({count} 字)", "#C62828", "#FFEBEE")
+    elif menu == "法律區":
+        law = [c for c in data if "法律" in c['category']]
+        count = sum(len(g['vocabulary']) for c in law for g in c['root_groups'])
+        ui_domain_page(law, f"法律術語區 ({count} 字)", "#FFD700", "#1A1A1A")
+    elif menu == "人工智慧區":
+        ai = [c for c in data if "人工智慧" in c['category'] or "AI" in c['category']]
+        count = sum(len(g['vocabulary']) for c in ai for g in c['root_groups'])
+        ui_domain_page(ai, f"AI 技術區 ({count} 字)", "#1565C0", "#E3F2FD")
+    elif menu == "心理與社會區":
+        psy = [c for c in data if any(k in c['category'] for k in ["心理", "社會", "Psych", "Soc"])]
+        count = sum(len(g['vocabulary']) for c in psy for g in c['root_groups'])
+        ui_domain_page(psy, f"心理與社會科學 ({count} 字)", "#AD1457", "#FCE4EC") # 桃紅色系
+    elif menu == "生物與自然區":
+        bio = [c for c in data if any(k in c['category'] for k in ["生物", "自然", "科學", "Bio", "Sci"])]
+        count = sum(len(g['vocabulary']) for c in bio for g in c['root_groups'])
+        ui_domain_page(bio, f"生物與自然科學 ({count} 字)", "#2E7D32", "#E8F5E9") # 深綠色系
+    elif menu == "管理區":
+    # 呼叫整合了 st.secrets 的管理頁面
+        ui_admin_page(data)
 if __name__ == "__main__":
     main()
