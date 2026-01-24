@@ -8,26 +8,32 @@ import base64
 from io import BytesIO
 from gtts import gTTS
 from streamlit_gsheets import GSheetsConnection
+# ==========================================
+# 1. 修正語音發音 (確保有聲音且 autoplay)
+# ==========================================
 def speak(text):
-    """最速發音邏輯"""
-    tts = gTTS(text=text, lang='en')
-    fp = BytesIO()
-    tts.write_to_fp(fp)
-    fp.seek(0)
-    audio_base64 = base64.b64encode(fp.read()).decode()
-    # 加入 id 以確保每次渲染都是新的組件，觸發自動播放
-    import time
-    comp_id = int(time.time() * 1000)
-    audio_html = f"""
-        <audio autoplay key="{comp_id}">
-            <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
-        </audio>
-        """
-    st.components.v1.html(audio_html, height=0)
-
-# ==========================================
-# 1. 核心配置與雲端同步
-# ==========================================
+    """改良版發音邏輯"""
+    try:
+        tts = gTTS(text=text, lang='en')
+        fp = BytesIO()
+        tts.write_to_fp(fp)
+        fp.seek(0)
+        audio_base64 = base64.b64encode(fp.read()).decode()
+        import time
+        comp_id = int(time.time() * 1000)
+        
+        audio_html = f"""
+            <audio autoplay id="aud_{comp_id}">
+                <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
+            </audio>
+            <script>
+                var x = document.getElementById("aud_{comp_id}");
+                x.play().catch(function(e) {{ console.log("Autoplay blocked"); }});
+            </script>
+            """
+        st.components.v1.html(audio_html, height=1)
+    except Exception as e:
+        st.error(f"語音錯誤: {e}")
 # ==========================================
 # 1. 核心配置與雲端同步
 # ==========================================
@@ -40,33 +46,54 @@ PENDING_FILE = 'pending_data.json'
 FEEDBACK_URL = st.secrets.get("feedback_sheet_url")
 
 @st.cache_data(ttl=600)
+@st.cache_data(ttl=600)
 def load_db():
-    """從 Google Sheets 讀取單字庫 (保持原有的 CSV 讀取方式，速度較快)"""
-    try:
-        df = pd.read_csv(GSHEET_URL)
-        if df.empty: return []
-        df.columns = [c.strip().lower() for c in df.columns]
-        structured_data = []
-        for cat_name, cat_group in df.groupby('category'):
-            root_groups = []
-            for (roots, meaning), group_df in cat_group.groupby(['roots', 'meaning']):
-                vocabulary = []
-                for _, row in group_df.iterrows():
-                    vocabulary.append({
-                        "word": str(row['word']),
-                        "breakdown": str(row['breakdown']),
-                        "definition": str(row['definition'])
-                    })
-                root_groups.append({
-                    "roots": [r.strip() for r in str(roots).split('/')],
-                    "meaning": str(meaning),
-                    "vocabulary": vocabulary
+    # 改為 9 欄一組的範圍
+    BLOCKS = ["A:I", "J:R", "S:AA", "AB:AJ", "AK:AS"]
+    
+    all_dfs = []
+    for rng in BLOCKS:
+        try:
+            url = f"{GSHEET_URL}&range={rng}"
+            df_part = pd.read_csv(url)
+            df_part = df_part.dropna(how='all')
+            if not df_part.empty:
+                # 確保欄位剛好是 9 個
+                df_part = df_part.iloc[:, :9]
+                df_part.columns = [
+                    'category', 'roots', 'meaning', 'word', 
+                    'breakdown', 'definition', 'phonetic', 'example', 'translation'
+                ]
+                all_dfs.append(df_part)
+        except:
+            continue
+
+    if not all_dfs: return []
+    df = pd.concat(all_dfs, ignore_index=True)
+    
+    # 結構化處理 (此處新增 translation 欄位)
+    structured_data = []
+    df = df.dropna(subset=['category'])
+    for cat_name, cat_group in df.groupby('category'):
+        root_groups = []
+        for (roots, meaning), group_df in cat_group.groupby(['roots', 'meaning']):
+            vocabulary = []
+            for _, row in group_df.iterrows():
+                vocabulary.append({
+                    "word": str(row['word']),
+                    "breakdown": str(row['breakdown']),
+                    "definition": str(row['definition']),
+                    "phonetic": str(row['phonetic']) if pd.notna(row['phonetic']) else "",
+                    "example": str(row['example']) if pd.notna(row['example']) else "",
+                    "translation": str(row['translation']) if pd.notna(row['translation']) else ""
                 })
-            structured_data.append({"category": str(cat_name), "root_groups": root_groups})
-        return structured_data
-    except Exception as e:
-        st.error(f"資料庫載入失敗: {e}")
-        return []
+            root_groups.append({
+                "roots": [r.strip() for r in str(roots).split('/')],
+                "meaning": str(meaning),
+                "vocabulary": vocabulary
+            })
+        structured_data.append({"category": str(cat_name), "root_groups": root_groups})
+    return structured_data
 def save_feedback_to_gsheet(word, feedback_type, comment):
     try:
         # 1. 建立連線
@@ -172,7 +199,7 @@ def ui_quiz_page(data):
         display_name = f"{c['category']} ({w_count} 字)"
         cat_options_list.append(display_name)
         cat_options_map[display_name] = c['category']
-    
+
     selected_raw = st.selectbox("選擇練習範圍", sorted(cat_options_list))
     selected_cat = cat_options_map[selected_raw]
 
@@ -190,12 +217,14 @@ def ui_quiz_page(data):
         if not pool: st.warning("此範圍無資料"); return
         st.session_state.flash_q = random.choice(pool)
         st.session_state.flipped = False
-        st.session_state.voiced = False # 用來控制是否已經唸過
+        st.session_state.voiced = False 
 
     q = st.session_state.flash_q
+    
+    # 單字卡片正面
     st.markdown(f"""
-        <div style="text-align: center; padding: 50px; border: 3px solid #eee; border-radius: 25px; background: #fdfdfd; margin-bottom: 20px;">
-            <p style="color: #999;">[ {q['cat']} ]</p>
+        <div style="text-align: center; padding: 50px; border: 3px solid #eee; border-radius: 25px; background: #fdfdfd; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <p style="color: #999; font-weight: bold;">[ {q['cat']} ]</p>
             <h1 style="font-size: 4.5em; margin: 0; color: #1E88E5;">{q['word']}</h1>
         </div>
     """, unsafe_allow_html=True)
@@ -205,7 +234,6 @@ def ui_quiz_page(data):
         if st.button("查看答案", use_container_width=True): 
             st.session_state.flipped = True
     with col2:
-        # 這個按鈕點了就會「一直唸」
         if st.button("播放發音", use_container_width=True):
             speak(q['word'])
     with col3:
@@ -213,30 +241,49 @@ def ui_quiz_page(data):
             if 'flash_q' in st.session_state: del st.session_state.flash_q
             st.rerun()
 
+    # 答案翻開後的邏輯
     if st.session_state.get('flipped'):
-        # 翻開答案時自動朗讀
         if not st.session_state.get('voiced'):
             speak(q['word'])
             st.session_state.voiced = True
             
-        # 根據是否為法律區，動態調整顏色
         is_legal = "法律" in q['cat']
-        bg_color = "#1A1A1A" if is_legal else "#E3F2FD"  # 法律用深黑，其他用淺藍
-        label_color = "#FFD700" if is_legal else "#1E88E5" # 法律用金色，其他用藍色
-        text_color = "#FFFFFF" if is_legal else "#000000"  # 法律用白色文字，其他用黑色
-        breakdown_color = "#FFD700" if is_legal else "#D32F2F" # 法律拆解用金色，其他用紅色
+        bg_color = "#1A1A1A" if is_legal else "#E3F2FD"
+        label_color = "#FFD700" if is_legal else "#1E88E5"
+        text_color = "#FFFFFF" if is_legal else "#000000"
+        breakdown_color = "#FFD700" if is_legal else "#D32F2F"
 
-        st.markdown(f"""
-            <div style="background-color: {bg_color}; padding: 25px; border-radius: 15px; margin-top: 20px; border-left: 10px solid {label_color}; border: 1px solid {label_color};">
-                <p style="font-size: 2em; margin-bottom: 10px; color: {text_color};">
-                    <b style="color: {label_color};">拆解：</b> 
-                    <span style="color: {breakdown_color}; font-family: monospace; font-weight: bold;">{q['breakdown']}</span>
-                </p>
-                <p style="font-size: 1.5em; color: {text_color};">
-                    <b style="color: {label_color};">釋義：</b> {q['definition']}
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
+        # 處理音標：移除多餘斜線
+        p_val = str(q.get('phonetic', '')).strip().replace('/', '')
+        phonetic_html = f"<div style='color:{label_color}; font-size:1.2em; margin-bottom:5px;'>/{p_val}/</div>" if p_val and p_val != "nan" else ""
+        
+        # 處理例句與翻譯：直接組合成字串，不使用多行引號以減少錯誤
+        e_val = str(q.get('example', '')).strip()
+        t_val = str(q.get('translation', '')).strip()
+        
+        example_html = ""
+        if e_val and e_val != "nan":
+            # 這裡改用最簡單的字串相加，避免縮排問題
+            example_html += f"<hr style='border-color:#555; margin:15px 0;'>"
+            example_html += f"<div style='font-style:italic; color:#666; font-size:1.1em;'>{e_val}</div>"
+            if t_val and t_val != "nan":
+                example_html += f"<div style='color:#666; font-size:0.95em; margin-top:5px;'>({t_val})</div>"
+
+        # 最終渲染：確保 full_html 變數完全左對齊，沒有任何空格縮排
+        full_html = f"""
+<div style="background-color:{bg_color}; padding:25px; border-radius:15px; border:1px solid {label_color}; border-left:10px solid {label_color}; margin-top:20px;">
+{phonetic_html}
+<div style="font-size:2em; margin-bottom:10px; color:{text_color};">
+<strong style="color:{label_color};">拆解：</strong>
+<span style="color:{breakdown_color}; font-family:monospace; font-weight:bold;">{q['breakdown']}</span>
+</div>
+<div style="font-size:1.5em; color:{text_color};">
+<strong style="color:{label_color};">釋義：</strong> {q['definition']}
+</div>
+{example_html}
+</div>
+"""
+        st.markdown(full_html, unsafe_allow_html=True)
 def ui_search_page(data, selected_cat):
     st.title("搜尋與瀏覽")
     relevant = data if selected_cat == "全部顯示" else [c for c in data if c['category'] == selected_cat]
