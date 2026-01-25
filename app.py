@@ -175,54 +175,52 @@ def load_db():
             })
         structured_data.append({"category": str(cat_name), "root_groups": root_groups})
     return structured_data
+
+
 import datetime
 import streamlit as st
 
-
 def ui_time_based_lofi():
     """
-    100% 穩定版：使用播放清單 ID 取代直播 ID
-    解決「無法播放錄影存檔」的問題
+    四個時段自動切換 (06-12, 12-18, 18-23, 23-06)
+    使用 Lofi Girl 官方最穩定的嵌入 ID
     """
+    # 1. 取得台灣時間 (UTC+8)
     utc_now = datetime.datetime.utcnow()
     tw_now = utc_now + datetime.timedelta(hours=8)
     hour = tw_now.hour
 
-    # 使用 listType=playlist 模式，這在 iPhone 上最穩定
-    # listID 是 Lofi Girl 官方整理好的永久清單
+    # 2. 設定四個時段的影片 ID (使用官方長期直播 ID)
+    # jfKfPfyJRdk: Study/Relax (經典書桌女孩)
+    # 28KRPhVzCus: Sleep/Chill (深夜女孩)
     if 6 <= hour < 12:
-        mode_name = "☀️ 晨間能量"
-        list_id = "PLofht4PTcpgsW8SOfp77STG7_5-7zKz-r" # Lofi 晨間清單
+        mode_name = "☀️ 晨間能量 (Morning)"
+        video_id = "jfKfPfyJRdk" 
         icon = "🌅"
     elif 12 <= hour < 18:
-        mode_name = "☕ 午後專注"
-        list_id = "PLofht4PTcpgnW7S_pT6S_GSu8U7H8L_oF" # Lofi 學習清單
+        mode_name = "☕ 午後專注 (Study)"
+        video_id = "jfKfPfyJRdk" 
+        icon = "📖"
     elif 18 <= hour < 23:
-        mode_name = "🌆 晚間複習"
-        list_id = "PLofht4PTcpgvPiaX_A8WbNisB9tD6kC7S" # Lofi 放鬆清單
+        mode_name = "🌆 晚間複習 (Chill)"
+        video_id = "28KRPhVzCus" # 切換到更安靜的睡眠頻道
+        icon = "🛋️"
     else:
         # 23:00 - 06:00
-        mode_name = "🌙 深夜療癒"
-        list_id = "PLofht4PTcpgu_v0X8I5B0vC_m7y0oIuYy" # Lofi 睡眠清單
+        mode_name = "🌙 深夜療癒 (Sleep)"
+        video_id = "28KRPhVzCus"
         icon = "😴"
 
-    with st.sidebar.expander(f"🎵 穩定音樂盒：{mode_name}", expanded=True):
+    with st.sidebar.expander(f"🎵 時光音樂：{mode_name}", expanded=True):
         st.write(f"🕒 台灣時間：{tw_now.strftime('%H:%M')}")
         
-        # 這裡的 src 格式改為支援播放清單的嵌入方式
+        # 這裡使用最穩定的嵌入參數
+        # playsinline=1: iPhone 網頁內播放
+        # rel=0: 結束後不顯示相關影片
         embed_code = f"""
             <div style="border-radius:12px; overflow:hidden; border: 1px solid #ddd; background: #000;">
                 <iframe width="100%" height="200" 
-                    src="https://www.youtube.com/embed?listType=playlist&list={list_id}&playsinline=1" 
-                    frameborder="0" 
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                    allowfullscreen>
-                </iframe>
-            </div>
-        """
-        st.markdown(embed_code, unsafe_allow_html=True)
-        st.caption("💡 提示：此為穩定播放清單，不會因直播結束而失效。")
-
+                    src="https://www.youtube.com/embed/{video_id}?rel=0&modestbranding=1
 
 def save_feedback_to_gsheet(word, feedback_type, comment):
     try:
