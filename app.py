@@ -431,29 +431,28 @@ def main():
     inject_custom_css() 
     data = load_db()
     
-    # 側邊欄標題
+    # --- 側邊欄配置 ---
     st.sidebar.title("Etymon Decoder")
     
-    # --- 任務 1：側欄頂部的使用說明按鈕 ---
-    # 使用 popover 容器建立一個乾淨的說明介面
-    with st.sidebar.popover("📖 使用說明 (新手必看)", use_container_width=True):
-        ui_newbie_whiteboard() # 呼叫任務 3 的白板內容
-        
-    # 主選單導航
+    # 導航頻道切換
     menu = st.sidebar.radio(
-        "導航頻道", 
+        "導航", 
         ["字根區", "學習區", "國小區", "國中區", "高中區", "醫學區", "法律區", "人工智慧區", "心理與社會區", "生物與自然區", "管理區"], 
         key="main_navigation"
     )
     
     st.sidebar.divider()
-    
+
+    # 任務 1：在側欄字根區上方放置「使用說明」按鈕
+    with st.sidebar.popover("📖 使用說明 (新手必看)", use_container_width=True):
+        ui_newbie_whiteboard() # 呼叫任務 3 的白板內容
+
     # 強制刷新按鈕
     if st.sidebar.button("強制刷新雲端數據", use_container_width=True): 
         st.cache_data.clear()
         st.rerun()
 
-    # 資料庫統計顯示
+    # 資料庫統計
     _, total_words = get_stats(data)
     st.sidebar.markdown(f"""
         <div class="stats-container">
@@ -464,21 +463,22 @@ def main():
         </div>
     """, unsafe_allow_html=True)
 
-    # --- 路由邏輯與任務 2 & 3 的實作 ---
+    # 分類篩選區 (特別提示新手往下滑)
+    st.sidebar.markdown("### 分類篩選")
+    cats = ["全部顯示"] + sorted(list(set(c['category'] for c in data)))
+    selected_cat = st.sidebar.radio("選擇領域", cats, key="cat_filter_radio")
+    st.sidebar.caption("💡 技巧：往下滑動可切換不同領域的字根。")
+
+    # --- 主內容區域路由 ---
     if menu == "字根區":
-        # 在側邊欄下方提供分類篩選 (輔助新手)
-        st.sidebar.markdown("### 🔍 進階篩選")
-        cats = ["全部顯示"] + sorted(list(set(c['category'] for c in data)))
-        selected_cat = st.sidebar.selectbox("依領域過濾", cats, key="cat_filter_select")
-        
-        # 呼叫修改後的字根區 (任務 2：純搜尋模式)
+        # 任務 2：呼叫已刪除按鈕、改為純搜尋模式的 ui_search_page
         ui_search_page(data, selected_cat)
         
     elif menu == "學習區": 
         ui_quiz_page(data)
         
     else:
-        # 處理各個專業分區 (國小、國中、高中等)
+        # 其他分區 (國小、國中、高中等)
         domain_configs = {
             "國小區": {"key": "國小", "title": "國小基礎", "color": "#FB8C00", "bg": "#FFF3E0"},
             "國中區": {"key": "國中", "title": "國中核心", "color": "#00838F", "bg": "#E0F7FA"},
@@ -494,10 +494,8 @@ def main():
         if menu in domain_configs:
             cfg = domain_configs[menu]
             sub_data = [c for c in data if cfg['key'] in str(c.get('category',''))]
-            total = sum(len(g['vocabulary']) for c in sub_data for g in c['root_groups'])
-            ui_domain_page(sub_data, f"{cfg['title']}字根 ({total} 字)", cfg['color'], cfg['bg'])
+            ui_domain_page(sub_data, f"{cfg['title']}字根", cfg['color'], cfg['bg'])
         elif menu == "管理區": 
             ui_admin_page(data)
-
 if __name__ == "__main__":
     main()
