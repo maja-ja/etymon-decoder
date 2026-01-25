@@ -13,29 +13,26 @@ from streamlit_gsheets import GSheetsConnection
 # 1. 修正語音發音 (確保有聲音且 autoplay)
 # ==========================================
 def speak(text):
+    if not text: return
     try:
-        # 使用 gTTS 生成語音
         tts = gTTS(text=text, lang='en')
         fp = BytesIO()
         tts.write_to_fp(fp)
         fp.seek(0)
-        audio_bytes = fp.read()
-        audio_base64 = base64.b64encode(audio_bytes).decode()
+        audio_base64 = base64.b64encode(fp.read()).decode()
         
-        # 產生唯一 ID 避免瀏覽器快取舊音訊
+        # 產生唯一 ID 避免腳本衝突
         cid = f"aud_{int(time.time()*1000)}"
-        
-        # HTML 播放腳本：增加了一個隱形的播放器，點擊按鈕後由 JS 直接執行 .play()
         audio_html = f"""
             <audio id="{cid}" src="data:audio/mp3;base64,{audio_base64}"></audio>
             <script>
-                var audio = document.getElementById("{cid}");
-                audio.play().catch(function(e) {{ console.log("Autoplay blocked, waiting for interaction"); }});
+                var a = document.getElementById("{cid}");
+                a.play().catch(e => console.log("Interaction required"));
             </script>
         """
         st.components.v1.html(audio_html, height=0)
     except Exception as e:
-        st.error(f"語音功能暫時失效: {e}")
+        st.sidebar.error(f"語音生成失敗")
 # ==========================================
 # 1. 核心配置與雲端同步
 # ==========================================
