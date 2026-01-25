@@ -595,38 +595,41 @@ def main():
     
     st.sidebar.title("Etymon Decoder")
 
-    # ==========================================
-    # 1. 搬移上來的功能：統計、刷新與分類篩選
-    # ==========================================
+    # --- 第一區：統計與刷新 ---
     with st.sidebar.container():
-        # 顯示資料庫統計
         _, total_words = get_stats(data)
         st.markdown(f"""
             <div class="stats-container" style="margin-bottom: 10px;">
                 <small>資料庫總計</small><br>
-                <span style="font-size: 1.8rem; font-weight: bold; color: #1E88E5;">{total_words}</span> 
-                <span style="font-size: 1rem; opacity: 0.8;">Words</span>
+                <span style="font-size: 1.8rem; font-weight: bold; color: #1E88E5;">{total_words}</span> Words
             </div>
         """, unsafe_allow_html=True)
         
-        # 強制刷新按鈕
-        if st.button("🔄 強制刷新雲端數據", use_container_width=True):
+        if st.sidebar.button("🔄 強制刷新雲端數據", use_container_width=True):
             st.cache_data.clear()
+            st.rerun()
+        
+        # 刷新後的關閉按鈕
+        if st.sidebar.button("✅ 刷新完成 (點此關閉)", key="close_1", use_container_width=True):
+            # Streamlit 目前沒有直接程式碼關閉側邊欄的 API
+            # 但 rerun 會觸發頁面重整，在手機上有助於視覺焦點回到主頁
             st.rerun()
 
     st.sidebar.divider()
 
-    # 分類篩選：現在是控制資料顯示的核心
-    st.sidebar.markdown("### 1. 選擇領域 (分類篩選)")
+    # --- 第二區：分類篩選 ---
+    st.sidebar.markdown("### 1. 選擇領域")
     all_cats = sorted(list(set(c['category'] for c in data)))
-    cats = ["請選擇領域", "全部顯示"] + all_cats # 這裡新增了全部顯示
-    selected_cat = st.sidebar.radio("1. 選擇領域：", cats, key="filter_cat")
+    cats = ["請選擇領域", "全部顯示"] + all_cats
+    selected_cat = st.sidebar.radio("領域清單：", cats, key="filter_cat")
     
+    # 選完領域後的關閉按鈕
+    if st.sidebar.button("🎯 選好了 (觀看字根列表)", key="close_2", use_container_width=True):
+        st.rerun()
+
     st.sidebar.divider()
 
-    # ==========================================
-    # 2. 導航選單：僅保留教學區、字根區、學習區
-    # ==========================================
+    # --- 第三區：功能導航 ---
     st.sidebar.markdown("### 2. 切換功能")
     menu = st.sidebar.radio(
         "功能導航：", 
@@ -634,23 +637,17 @@ def main():
         key="main_nav"
     )
 
-    # 操作提醒
-    st.sidebar.info("💡 **操作提醒：**\n欲查看單字列表，請務必先點選「字根區」，再從上方「分類篩選」選取領域。")
+    # 切換功能後的關閉按鈕
+    if st.sidebar.button("🚀 開始學習 (點此關閉)", key="close_3", use_container_width=True):
+        st.rerun()
 
-    # ==========================================
-    # 3. 主內容路由邏輯
-    # ==========================================
+    # --- 主內容路由 ---
     if menu == "教學區":
         ui_newbie_whiteboard_page() 
-        
     elif menu == "字根區":
-        # 呼叫整合了「全部列出」與「搜尋」的功能
-        ui_search_page_all_list(data, selected_cat)
-        
-    # ... 在 main() 的路由邏輯中 ...
+        ui_search_page_all_list(data, selected_cat) # 接收選定的分類
     elif menu == "學習區":
-        # 傳入選定的領域，讓習題與篩選連動
-        ui_quiz_page(data, selected_cat)
+        ui_quiz_page(data, selected_cat) # 接收選定的分類
 # 確保在檔案最下方呼叫
 if __name__ == "__main__":
     main()
