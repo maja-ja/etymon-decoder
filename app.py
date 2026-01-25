@@ -48,15 +48,10 @@ PENDING_FILE = 'pending_data.json'
 FEEDBACK_URL = st.secrets.get("feedback_sheet_url")
 @st.cache_data(ttl=600)
 def load_db():
-    # 定義起始欄位與對應的標籤
-    # A 區 (A:I) = 0, B 區 (L:T) = 11, C 區 (W:AE) = 22...
-    BLOCKS = {
-        "A 區": 0,
-        "B 區": 11,
-        "C 區": 22,
-        "D 區": 33,
-        "E 區": 44
-    }
+    # 建立 A-Z 的起始位置：A=0, B=11, C=22, ..., Z=275
+    import string
+    ALPHABET = list(string.ascii_uppercase)
+    BLOCK_MAP = {letter: i * 11 for i, letter in enumerate(ALPHABET)}
     
     try:
         raw_df = pd.read_csv(GSHEET_URL)
@@ -64,55 +59,43 @@ def load_db():
         st.error(f"讀取失敗: {e}")
         return []
 
-    all_data = []
-    for label, start in BLOCKS.items():
+    structured_data = []
+
+    for block_name, start_idx in BLOCK_MAP.items():
         try:
-            if start >= len(raw_df.columns): continue
+            if start_idx >= len(raw_df.columns): continue
             
-            # 擷取 9 欄並清洗
-            df_part = raw_df.iloc[:, start:start+9].copy()
+            # 擷取 9 欄
+            df_part = raw_df.iloc[:, start_idx:start_idx+9].copy()
             df_part.columns = ['category', 'roots', 'meaning', 'word', 'breakdown', 'definition', 'phonetic', 'example', 'translation']
             
-            # 移除標題列與空行
+            # 過濾標題與空單字
             df_part = df_part[df_part['category'].astype(str).str.lower() != 'category']
             df_part = df_part.dropna(subset=['word'])
-            
-            # 重要：在資料中存入它是哪一區
-            for _, row in df_part.iterrows():
-                all_data.append({
-                    "block_label": label, # 標記區塊
-                    "category": str(row['category']),
-                    "roots": str(row['roots']),
-                    "meaning": str(row['meaning']),
-                    "word": str(row['word']),
-                    "breakdown": str(row['breakdown']),
-                    "definition": str(row['definition']),
-                    "phonetic": str(row['phonetic']) if str(row['phonetic']) != "nan" else "",
-                    "example": str(row['example']) if str(row['example']) != "nan" else "",
-                    "translation": str(row['translation']) if str(row['translation']) != "nan" else ""
+            if df_part.empty: continue
+
+            # 建立該字母的大區塊
+            block_node = {
+                "letter": block_name,
+                "sub_categories": []
+            }
+
+            for cat_name, cat_group in df_part.groupby('category'):
+                root_groups = []
+                for (roots, meaning), group_df in cat_group.groupby(['roots', 'meaning']):
+                    vocabulary = [row.to_dict() for _, row in group_df.iterrows()]
+                    root_groups.append({
+                        "roots": [r.strip() for r in str(roots).split('/')],
+                        "meaning": str(meaning),
+                        "vocabulary": vocabulary
+                    })
+                block_node["sub_categories"].append({
+                    "name": cat_name,
+                    "root_groups": root_groups
                 })
+            structured_data.append(block_node)
         except:
             continue
-
-    # 將扁平資料轉回結構化資料 (維持您 UI 需要的格式)
-    # 這裡我們改以 block_label 作為分組依據
-    structured_data = []
-    df_final = pd.DataFrame(all_data)
-    
-    for label, block_group in df_final.groupby('block_label'):
-        root_groups = []
-        for (roots, meaning), group_df in block_group.groupby(['roots', 'meaning']):
-            vocabulary = [row.to_dict() for _, row in group_df.iterrows()]
-            root_groups.append({
-                "roots": [r.strip() for r in roots.split('/')],
-                "meaning": meaning,
-                "vocabulary": vocabulary
-            })
-        structured_data.append({
-            "block_label": label, 
-            "category": label, # 讓 category 顯示為區塊名
-            "root_groups": root_groups
-        })
     return structured_data
 def save_feedback_to_gsheet(word, feedback_type, comment):
     try:
@@ -391,11 +374,42 @@ def main():
         return
 
     if menu == "字根區":
-        # 排除空值並排序分類選單
-        available_cats = sorted(list(set(str(c['category']) for c in data if c.get('category'))))
-        cats = ["全部顯示"] + available_cats
-        ui_search_page(data, st.sidebar.selectbox("分類篩選", cats))
+        st.title("🗂️ 字根總覽 (A-Z 大區)")
+        st.caption("點擊字母區塊展開查看分類分支")
         
+        if not data:
+            st.warning("資料庫讀取中或無資料，請確認 Google Sheets 內容。")
+            return
+
+        # 這裡的 data 結構必須是包含 'letter' 與 'sub_categories' 的格式
+        for block in data:
+            # 第一層：A-Z 字母大區
+            # 顯示格式如：✨ [A] 區塊 (包含 3 個小分類)
+            block_title = f"✨ [{block['letter']}] 區塊 - 共 {len(block['sub_categories'])} 個小分支"
+            
+            with st.expander(block_title):
+                # 第二層：點開後顯示該字母區下的「小分支」
+                for sub in block['sub_categories']:
+                    st.markdown(f"#### 📂 分類：{sub['name']}")
+                    
+                    # 顯示該分類下的字根組與單字
+                    for group in sub['root_groups']:
+                        # 使用 info 區塊美化字根與意義顯示
+                        st.info(f"**字根：** {' / '.join(group['roots'])}　**意義：** {group['meaning']}")
+                        
+                        # 呼叫您原本顯示單字明細的邏輯 (例如表格)
+                        word_list = []
+                        for v in group['vocabulary']:
+                            word_list.append({
+                                "單字": v['word'],
+                                "拆解": v['breakdown'],
+                                "解釋": v['definition'],
+                                "翻譯": v['translation']
+                            })
+                        if word_list:
+                            st.table(word_list) # 或者使用 st.dataframe
+                    
+                    st.divider() # 小分支之間的分隔線
     elif menu == "學習區":
         ui_quiz_page(data)
         
