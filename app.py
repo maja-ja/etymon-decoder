@@ -14,16 +14,17 @@ from streamlit_gsheets import GSheetsConnection
 def inject_custom_css():
     st.markdown("""
         <style>
-            /* 基礎縮放邏輯 */
+            /* 1. 基礎文字與自適應縮放 */
             html { font-size: 16px; }
             
-            /* 手機端 (寬度小於 600px) 文字與排版優化 */
+            /* 手機端優化 (小於 600px) */
             @media (max-width: 600px) {
                 .responsive-title { font-size: 8vw !important; }
                 .responsive-word { font-size: 10vw !important; }
                 .responsive-breakdown { font-size: 5vw !important; padding: 3px 8px !important; }
                 .responsive-text { font-size: 4.5vw !important; }
-                .stButton button { width: 100%; margin-bottom: 5px; } /* 手機按鈕撐滿 */
+                /* 手機端按鈕撐滿，方便點擊 */
+                .stButton button { width: 100% !important; margin-bottom: 5px; } 
             }
             
             /* 電腦端基礎尺寸 */
@@ -34,22 +35,35 @@ def inject_custom_css():
                 .responsive-text { font-size: 1.3rem !important; }
             }
 
-            /* 統一拆解框樣式 */
+            /* 2. 統計框：預設跟隨系統顏色 (Dark/Light Mode) */
+            .stats-container {
+                text-align: center; 
+                padding: 15px; 
+                background-color: var(--secondary-background-color); 
+                border: 1px solid rgba(128, 128, 128, 0.2);
+                border-radius: 12px; 
+                margin-top: 20px;
+                color: var(--text-color);
+            }
+
+            /* 3. 禁止 Selectbox 輸入 (讓它只能選取) */
+            /* 這裡透過 CSS 讓輸入框不接受指標事件，點擊時會直接觸發下拉而非彈出鍵盤 */
+            .stSelectbox div[role="button"] input {
+                caret-color: transparent !important;
+                pointer-events: none !important;
+            }
+            
+            /* 4. 統一拆解框樣式 (金色風格) */
             .breakdown-container {
                 font-family: 'Courier New', monospace;
                 font-weight: bold;
-                background: #888;
+                background: #444; /* 深色背景確保金色字體突出 */
                 color: #FFD700;
                 padding: 4px 12px;
                 border-radius: 8px;
                 border: 1px solid #FFD700;
                 text-shadow: 1px 1px 2px black;
                 display: inline-block;
-            }
-            /* 嘗試讓 selectbox 的輸入框唯讀，防止手機跳出鍵盤 */
-            .stSelectbox div[role="button"] input {
-                caret-color: transparent;
-                pointer-events: none;
             }
         </style>
     """, unsafe_allow_html=True)
