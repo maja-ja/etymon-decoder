@@ -14,26 +14,36 @@ from streamlit_gsheets import GSheetsConnection
 # ==========================================
 def speak(text):
     try:
+        # 1. 生成語音
         tts = gTTS(text=text, lang='en')
         fp = BytesIO()
         tts.write_to_fp(fp)
         fp.seek(0)
-        audio_base64 = base64.b64encode(fp.read()).decode()
+        audio_bytes = fp.read()
         
-        # 使用隨機 ID 避免 Streamlit 元件快取
-        cid = f"aud_{int(time.time()*1000)}"
+        # 2. 方法 A：使用 HTML5 自動播放（原本的方法，但加上更多相容性代碼）
+        audio_base64 = base64.b64encode(audio_bytes).decode()
         audio_html = f"""
-            <audio autoplay id="{cid}">
+            <audio autoplay id="audio_tag">
                 <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
             </audio>
             <script>
-                var x = document.getElementById("{cid}");
-                x.volume = 1.0;
-                x.play().catch(function(e) {{ console.log("Autoplay blocked"); }});
+                var audio = document.getElementById("audio_tag");
+                audio.volume = 1.0;
+                var promise = audio.play();
+                if (promise !== undefined) {{
+                    promise.catch(error => {{
+                        console.log("Autoplay was prevented by browser settings.");
+                    }});
+                }}
             </script>
             """
-        # height=0 隱藏 HTML 元件空間
         st.components.v1.html(audio_html, height=0)
+        
+        # 3. 方法 B：在側邊欄顯示一個迷你的播放器（備案，如果自動播放失效，使用者可點擊這裡）
+        with st.sidebar:
+            st.audio(audio_bytes, format="audio/mp3")
+            
     except Exception as e:
         st.error(f"語音生成失敗: {e}")
 # ==========================================
