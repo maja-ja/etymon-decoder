@@ -361,10 +361,61 @@ def main():
     elif menu == "學習區":
         ui_quiz_page(data)
 
-    elif menu == "管理區":
-        st.title("🛠️ 管理員功能")
-        st.write("目前資料庫結構概覽：")
-        st.json(data)
+elif menu == "管理區":
+
+        st.title("🛠️ 管理員控制台")
+
+        
+
+        # 建立一個簡單的密碼檢查介面
+
+        password = st.text_input("請輸入管理員密碼", type="password")
+
+        
+
+        # 這裡設定您的密碼 (建議實際使用時存放在 st.secrets)
+
+        ADMIN_PASSWORD = st.secrets["admin_password"]
+
+        
+
+        if password == ADMIN_PASSWORD:
+
+            st.success("驗證成功！")
+
+            st.write("### 核心資料庫結構清單 (JSON)")
+
+            st.write("目前的資料是由 A-Z 橫向區塊讀取，並自動分類。")
+
+            
+
+            # 顯示完整的資料結構供偵錯
+
+            st.json(data)
+
+            
+
+            # 也可以加入數據導出功能
+
+            st.download_button(
+
+                label="下載完整資料庫 (JSON)",
+
+                data=json.dumps(data, indent=4, ensure_ascii=False),
+
+                file_name="etymon_db_backup.json",
+
+                mime="application/json"
+
+            )
+
+        elif password == "":
+
+            st.info("請輸入密碼以存取後台資料。")
+
+        else:
+
+            st.error("密碼錯誤，存取被拒。")
 
     else:
         # 通用篩選邏輯：適用於 醫學區、法律區、高中 7000 區等
