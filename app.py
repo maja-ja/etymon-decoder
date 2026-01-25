@@ -48,69 +48,63 @@ PENDING_FILE = 'pending_data.json'
 FEEDBACK_URL = st.secrets.get("feedback_sheet_url")
 
 @st.cache_data(ttl=600)
-@st.cache_data(ttl=600)
-@st.cache_data(ttl=600)
 def load_db():
-    # 1. 定義每一組資料的起始欄位索引 (0 開始計數)
-    # A=0, L=11, W=22, AH=33, AS=44 (每組 9 欄 + 2 欄間隔)
+    # 1. 根據截圖修正起始欄位 (A=0, L=11, W=22, AH=33, AS=44)
+    # 每組 9 欄資料，中間隔 2 欄空白
     START_COLS = [0, 11, 22, 33, 44] 
     
     try:
-        # 直接讀取整張工作表
+        # 直接讀取完整試算表
         raw_df = pd.read_csv(GSHEET_URL)
     except Exception as e:
-        st.error(f"讀取 Google Sheets 失敗: {e}")
+        st.error(f"無法讀取 Google Sheets: {e}")
         return []
 
     all_dfs = []
     for start in START_COLS:
         try:
-            # 確保不會超出總欄位數
+            # 如果起始索引超過總欄位數則跳過
             if start >= len(raw_df.columns):
                 continue
-                
-            # 擷取該區段的 9 欄
+            
+            # 擷取該區塊的 9 欄資料
             df_part = raw_df.iloc[:, start:start+9].copy()
             
-            # 強制賦予正確的欄位名稱
+            # 強制賦予標準欄位名稱
             df_part.columns = [
                 'category', 'roots', 'meaning', 'word', 
                 'breakdown', 'definition', 'phonetic', 'example', 'translation'
             ]
             
-            # 過濾無效行：
-            # 1. 移除空白行 (category 欄位為空)
-            # 2. 移除重複的標題行 (避免 category 欄位內容就叫做 "category")
-            df_part = df_part.dropna(subset=['category'])
+            # 關鍵修正 A：移除重複的標題行 (避免把 "category" 當成分類)
             df_part = df_part[df_part['category'].astype(str).str.lower() != 'category']
             
+            # 關鍵修正 B：移除整行皆為空的無效資料
+            df_part = df_part.dropna(subset=['category', 'word'], how='all')
+            
             all_dfs.append(df_part)
-        except Exception:
+        except:
             continue
 
-    if not all_dfs:
-        return []
-
-    # 合併所有區段
-    df = pd.concat(all_dfs, ignore_index=True)
+    if not all_dfs: return []
     
-    # 清洗資料：去除前後空格，處理 NaN
+    # 合併所有區塊並清理空白字元
+    df = pd.concat(all_dfs, ignore_index=True)
     df = df.apply(lambda x: x.astype(str).str.strip())
     
-    # 重新構建你程式需要的結構
     structured_data = []
-    # 依照 category 分組
+    # 依照 category 分組，並過濾掉 nan 字串
     for cat_name, cat_group in df.groupby('category'):
         if cat_name == "nan" or not cat_name:
             continue
             
         root_groups = []
-        # 在該分類下依照 roots 和 meaning 分組
         for (roots, meaning), group_df in cat_group.groupby(['roots', 'meaning']):
+            if roots == "nan": continue
+            
             vocabulary = []
             for _, row in group_df.iterrows():
-                if row['word'] == "nan":
-                    continue
+                if row['word'] == "nan": continue
                 vocabulary.append({
                     "word": row['word'],
                     "breakdown": row['breakdown'],
