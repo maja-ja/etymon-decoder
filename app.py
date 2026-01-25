@@ -14,6 +14,7 @@ from streamlit_gsheets import GSheetsConnection
 # ==========================================
 def speak(text):
     try:
+        # 使用 gTTS 生成語音
         tts = gTTS(text=text, lang='en')
         fp = BytesIO()
         tts.write_to_fp(fp)
@@ -21,27 +22,20 @@ def speak(text):
         audio_bytes = fp.read()
         audio_base64 = base64.b64encode(audio_bytes).decode()
         
-        # 建立唯一 ID
-        unique_id = f"audio_{int(time.time() * 1000)}"
+        # 產生唯一 ID 避免瀏覽器快取舊音訊
+        cid = f"aud_{int(time.time()*1000)}"
         
-        # 1. 核心播放腳本 (HTML5)
+        # HTML 播放腳本：增加了一個隱形的播放器，點擊按鈕後由 JS 直接執行 .play()
         audio_html = f"""
-            <audio id="{unique_id}" autoplay>
-                <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
-            </audio>
+            <audio id="{cid}" src="data:audio/mp3;base64,{audio_base64}"></audio>
             <script>
-                var audio = document.getElementById("{unique_id}");
-                audio.play().catch(function(e) {{ console.log("Autoplay blocked"); }});
+                var audio = document.getElementById("{cid}");
+                audio.play().catch(function(e) {{ console.log("Autoplay blocked, waiting for interaction"); }});
             </script>
         """
         st.components.v1.html(audio_html, height=0)
-        
-        # 2. 側邊欄備份播放 (隱形，但能幫助瀏覽器識別音訊來源)
-        with st.sidebar:
-            st.audio(audio_bytes, format="audio/mp3")
-            
     except Exception as e:
-        st.error(f"語音功能暫時不可用: {e}")
+        st.error(f"語音功能暫時失效: {e}")
 # ==========================================
 # 1. 核心配置與雲端同步
 # ==========================================
