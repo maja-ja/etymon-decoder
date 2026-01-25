@@ -69,20 +69,30 @@ def load_db():
 # ==========================================
 
 def render_word_card(v, theme_color="#1E88E5"):
-    """純文字單字卡，不再觸發 Stop"""
+    """
+    統一的單字卡渲染函式
+    v: 單字資料字典
+    theme_color: 卡片標題顏色
+    """
     with st.container(border=True):
-        st.markdown(f"### <span style='color:{theme_color}'>{v['word']}</span>", unsafe_allow_html=True)
+        col_w, col_p = st.columns([4, 1])
+        with col_w:
+            st.markdown(f'<div style="font-size: 1.5em; font-weight: bold; color: {theme_color};">{v["word"]}</div>', unsafe_allow_html=True)
+            if v.get('phonetic') and str(v['phonetic']) != "nan": 
+                st.caption(f"/{v['phonetic']}/")
+        with col_p:
+            # 使用隨機 key 避免在同頁面出現重複 ID 導致按鈕失效
+            btn_key = f"v_{v['word']}_{title}"_{random.randint(0, 100000)}"
+            if st.button("🔊", key=btn_key): 
+                speak(v['word'])
         
-        if v.get('phonetic') and str(v['phonetic']) != 'nan':
-            st.caption(f"/{v['phonetic']}/")
+        st.markdown(f"**拆解：** `{v['breakdown']}`")
+        st.markdown(f"**定義：** {v['definition']}")
         
-        st.write(f"**構成：** `{v['breakdown']}`")
-        st.write(f"**定義：** {v['definition']}")
-        
-        if v.get('example') and str(v['example']) != 'nan':
-            with st.expander("查看例句範例"):
+        if v.get('example') and str(v['example']) != "nan":
+            with st.expander("查看例句"):
                 st.write(v['example'])
-                if v.get('translation') and str(v['translation']) != 'nan':
+                if v.get('translation') and str(v['translation']) != "nan":
                     st.caption(f"({v['translation']})")
 
 def ui_quiz_page(data):
