@@ -47,52 +47,68 @@ PENDING_FILE = 'pending_data.json'
 FEEDBACK_URL = st.secrets.get("feedback_sheet_url")
 
 @st.cache_data(ttl=600)
+@st.cache_data(ttl=600)
 def load_db():
-    # 改為 9 欄一組的範圍
-    BLOCKS = ["A:I", "J:R", "S:AA", "AB:AJ", "AK:AS"]
+    # 根據截圖，每一組的起始欄位索引（0 開始計數）
+    # 第一組 A:I (0-8), 第二組 L:T (11-19) ...
+    START_COLS = [0, 11, 22, 33, 44] 
     
     all_dfs = []
-    for rng in BLOCKS:
+    # 讀取完整工作表
+    try:
+        raw_df = pd.read_csv(GSHEET_URL)
+    except Exception as e:
+        st.error(f"讀取失敗: {e}")
+        return []
+
+    for start in START_COLS:
         try:
-            url = f"{GSHEET_URL}&range={rng}"
-            df_part = pd.read_csv(url)
-            df_part = df_part.dropna(how='all')
-            if not df_part.empty:
-                # 確保欄位剛好是 9 個
-                df_part = df_part.iloc[:, :9]
-                df_part.columns = [
-                    'category', 'roots', 'meaning', 'word', 
-                    'breakdown', 'definition', 'phonetic', 'example', 'translation'
-                ]
-                all_dfs.append(df_part)
+            # 擷取該區段的 9 欄
+            df_part = raw_df.iloc[:, start:start+9].copy()
+            
+            # 給予統一欄位名稱
+            df_part.columns = [
+                'category', 'roots', 'meaning', 'word', 
+                'breakdown', 'definition', 'phonetic', 'example', 'translation'
+            ]
+            
+            # 關鍵修正：排除掉「標題重複行」與「空行」
+            df_part = df_part[df_part['category'] != 'category'] 
+            df_part = df_part.dropna(subset=['category', 'word'], how='all')
+            
+            all_dfs.append(df_part)
         except:
             continue
 
     if not all_dfs: return []
     df = pd.concat(all_dfs, ignore_index=True)
     
-    # 結構化處理 (此處新增 translation 欄位)
+    # 結構化處理 (維持你原本的邏輯)
     structured_data = []
-    df = df.dropna(subset=['category'])
+    # 確保資料型態為字串並移除空白
+    df = df.astype(str).apply(lambda x: x.str.strip())
+    
     for cat_name, cat_group in df.groupby('category'):
+        if cat_name == "nan": continue
         root_groups = []
         for (roots, meaning), group_df in cat_group.groupby(['roots', 'meaning']):
             vocabulary = []
             for _, row in group_df.iterrows():
+                if row['word'] == "nan": continue
                 vocabulary.append({
-                    "word": str(row['word']),
-                    "breakdown": str(row['breakdown']),
-                    "definition": str(row['definition']),
-                    "phonetic": str(row['phonetic']) if pd.notna(row['phonetic']) else "",
-                    "example": str(row['example']) if pd.notna(row['example']) else "",
-                    "translation": str(row['translation']) if pd.notna(row['translation']) else ""
+                    "word": row['word'],
+                    "breakdown": row['breakdown'],
+                    "definition": row['definition'],
+                    "phonetic": row['phonetic'] if row['phonetic'] != "nan" else "",
+                    "example": row['example'] if row['example'] != "nan" else "",
+                    "translation": row['translation'] if row['translation'] != "nan" else ""
                 })
             root_groups.append({
-                "roots": [r.strip() for r in str(roots).split('/')],
-                "meaning": str(meaning),
+                "roots": [r.strip() for r in roots.split('/')],
+                "meaning": meaning,
                 "vocabulary": vocabulary
             })
-        structured_data.append({"category": str(cat_name), "root_groups": root_groups})
+        structured_data.append({"category": cat_name, "root_groups": root_groups})
     return structured_data
 def save_feedback_to_gsheet(word, feedback_type, comment):
     try:
