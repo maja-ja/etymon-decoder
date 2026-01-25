@@ -401,41 +401,32 @@ def main():
 
     if menu == "字根區":
         st.title("🗂️ 字根總覽 (A-Z 大區)")
-        st.caption("點擊字母區塊展開查看分類分支")
         
         if not data:
-            st.warning("資料庫讀取中或無資料，請確認 Google Sheets 內容。")
+            st.warning("⚠️ 系統未偵測到任何單字。請確認試算表中 'word' 欄位是否已填寫。")
+            # 顯示偵錯資訊
+            st.info("提示：程式目前預計從 A 欄(0)、L 欄(11)、W 欄(22) 等位置抓取資料。")
             return
 
-        # 這裡的 data 結構必須是包含 'letter' 與 'sub_categories' 的格式
+        # 顯示 A-Z 摺疊選單
         for block in data:
-            # 第一層：A-Z 字母大區
-            # 顯示格式如：✨ [A] 區塊 (包含 3 個小分類)
-            block_title = f"✨ [{block['letter']}] 區塊 - 共 {len(block['sub_categories'])} 個小分支"
-            
-            with st.expander(block_title):
-                # 第二層：點開後顯示該字母區下的「小分支」
+            with st.expander(f"✨ 字母區塊：{block['letter']}"):
                 for sub in block['sub_categories']:
                     st.markdown(f"#### 📂 分類：{sub['name']}")
                     
-                    # 顯示該分類下的字根組與單字
                     for group in sub['root_groups']:
-                        # 使用 info 區塊美化字根與意義顯示
-                        st.info(f"**字根：** {' / '.join(group['roots'])}　**意義：** {group['meaning']}")
+                        st.info(f"**字根：** {' / '.join(group['roots'])} ({group['meaning']})")
                         
-                        # 呼叫您原本顯示單字明細的邏輯 (例如表格)
-                        word_list = []
+                        # 整理顯示資料
+                        display_df = []
                         for v in group['vocabulary']:
-                            word_list.append({
+                            display_df.append({
                                 "單字": v['word'],
-                                "拆解": v['breakdown'],
                                 "解釋": v['definition'],
                                 "翻譯": v['translation']
                             })
-                        if word_list:
-                            st.table(word_list) # 或者使用 st.dataframe
-                    
-                    st.divider() # 小分支之間的分隔線
+                        st.table(display_df)
+                    st.divider()
     elif menu == "學習區":
         ui_quiz_page(data)
         
@@ -449,14 +440,22 @@ def main():
             st.info("目前資料庫中尚無高中 7000 相關分類。")
             
     elif menu == "醫學區":
-        # 修正 NameError：先定義 med 變數並判斷是否存在
-        med = [c for c in data if any(k in str(c['category']) for k in ["醫學", "Medicine", "Med"])]
-        if med:
-            count = sum(len(g['vocabulary']) for c in med for g in c['root_groups'])
-            ui_domain_page(med, f"醫學專業區 ({count} 字)", "#C62828", "#FFEBEE")
+        # 從所有大區塊的所有小分支中搜尋「醫學」關鍵字
+        med_data = []
+        for block in data:
+            for sub in block['sub_categories']:
+                if any(k in sub['name'] for k in ["醫學", "Medicine"]):
+                    med_data.append(sub)
+        
+        if med_data:
+            st.title("醫學專業區")
+            # 這裡重新封裝成 ui_domain_page 需要的格式或直接在此顯示
+            for sub in med_data:
+                with st.expander(f"📂 {sub['name']}"):
+                    # 顯示邏輯...
+                    pass
         else:
-            st.warning("找不到『醫學』分類。請檢查試算表的 Category 欄位。")
-            
+            st.warning("找不到醫學分類資料。")
     elif menu == "法律區":
         # 修正 NameError：先定義 law 變數並判斷是否存在
         law = [c for c in data if any(k in str(c['category']) for k in ["法律", "Law", "Legal"])]
