@@ -524,61 +524,6 @@ def display_filtered_results(data, query, selected_cat):
     if not found_any:
         st.info(f"在「{selected_cat}」分類中找不到關於「{query}」的結果。")
 # ==========================================
-# 3. 主程序入口
-# ==========================================
-def main():
-    st.set_page_config(page_title="Etymon Decoder", layout="wide")
-    inject_custom_css()
-    
-    # --- 1. 刷新功能區 (放最上面) ---
-    if st.sidebar.button("🔄 強制刷新雲端數據", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
-    
-    # 讀取資料
-    data = load_db()
-    
-    # --- 2. 導航選單 ---
-    st.sidebar.title("Etymon Decoder")
-    menu = st.sidebar.radio(
-        "導航", 
-        ["教學區", "字根區", "學習區", "國小區", "國中區", "高中區", "醫學區", "法律區", "人工智慧區", "心理與社會區", "生物與自然區", "管理區"],
-        key="main_nav"
-    )
-    
-    st.sidebar.divider()
-
-    # --- 3. 統計與篩選區 ---
-    # 顯示總量統計
-    _, total_words = get_stats(data)
-    st.sidebar.markdown(f"""
-        <div class="stats-container">
-            <small>資料庫總計</small><br>
-            <span style="font-size: 1.5rem; font-weight: bold;">{total_words}</span> Words
-        </div>
-    """, unsafe_allow_html=True)
-    
-    st.sidebar.markdown("### 分類篩選")
-    cats = ["全部顯示"] + sorted(list(set(c['category'] for c in data)))
-    selected_cat = st.sidebar.radio("選擇領域", cats, key="filter_cat")
-
-    # --- 4. 主內容路由 ---
-    if menu == "教學區":
-        ui_newbie_whiteboard_page() 
-        
-    elif menu == "字根區":
-        # 任務：預設全部列出 + 搜尋功能
-        ui_search_page_all_list(data, selected_cat)
-        
-    elif menu == "學習區":
-        ui_quiz_page(data)
-        
-    else:
-        target_cat = menu.replace("區", "")
-        domain_data = [c for c in data if target_cat in str(c.get('category',''))]
-        ui_domain_page(domain_data, f"{menu}字根庫", "#1E88E5", "#F0F2F6")
-
-# ==========================================
 # 修正後的字根區：支援全部列出與搜尋
 # ==========================================
 def ui_search_page_all_list(data, selected_cat):
@@ -622,6 +567,67 @@ def ui_newbie_whiteboard_page():
     """獨立的教學區頁面內容"""
     st.markdown('<h1 class="responsive-title">📖 教學區</h1>', unsafe_allow_html=True)
     ui_newbie_whiteboard() # 呼叫你原本定義的教學白板
+# ==========================================
+# 3. 主程序入口
+# ==========================================
+def main():
+    st.set_page_config(page_title="Etymon Decoder", layout="wide")
+    inject_custom_css()
+    data = load_db()
+    
+    # --- 1. 側邊欄：整合「刷新」與「字數統計」 ---
+    st.sidebar.title("Etymon Decoder")
+    
+    # 建立一個統一的統計與控制區塊
+    with st.sidebar.container():
+        # 顯示總量統計
+        _, total_words = get_stats(data)
+        st.markdown(f"""
+            <div class="stats-container" style="margin-bottom: 10px;">
+                <small>資料庫總計</small><br>
+                <span style="font-size: 1.8rem; font-weight: bold; color: var(--primary-color);">{total_words}</span> 
+                <span style="font-size: 1rem; opacity: 0.8;">Words</span>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # 強制刷新按鈕緊貼在統計框下方
+        if st.button("🔄 強制刷新雲端數據", use_container_width=True, key="refresh_sync"):
+            st.cache_data.clear()
+            st.rerun()
+
+    st.sidebar.divider()
+
+    # --- 2. 導航選單 ---
+    # 教學區在最上方
+    menu = st.sidebar.radio(
+        "導航", 
+        ["教學區", "字根區", "學習區", "國小區", "國中區", "高中區", "醫學區", "法律區", "人工智慧區", "心理與社會區", "生物與自然區", "管理區"],
+        index=1, # 預設停在字根區，或可改 0 停在教學區
+        key="main_nav"
+    )
+    
+    st.sidebar.divider()
+
+    # --- 3. 分類篩選區 ---
+    st.sidebar.markdown("### 分類篩選")
+    all_cats = sorted(list(set(c['category'] for c in data)))
+    cats = ["全部顯示"] + all_cats
+    selected_cat = st.sidebar.radio("選擇領域", cats, key="filter_cat")
+
+    # --- 4. 主內容路由 ---
+    if menu == "教學區":
+        ui_newbie_whiteboard_page() 
+    elif menu == "字根區":
+        # 實現「全部列出」＋「搜尋篩選」
+        ui_search_page_all_list(data, selected_cat)
+    elif menu == "學習區":
+        ui_quiz_page(data)
+    else:
+        target_cat = menu.replace("區", "")
+        domain_data = [c for c in data if target_cat in str(c.get('category',''))]
+        ui_domain_page(domain_data, f"{menu}字根庫", "#1E88E5", "#F0F2F6")
+
+
 # 確保在檔案最下方呼叫
 if __name__ == "__main__":
     main()
