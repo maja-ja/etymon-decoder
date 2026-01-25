@@ -247,10 +247,10 @@ def get_stats(data):
 # ==========================================
 def ui_domain_page(domain_data, title, theme_color, bg_color):
     # --- 任務 1：使用說明介面 ---
-    with st.expander("📖 初次使用？點擊查看「拆解式學習法」說明", expanded=False):
+    with st.expander("📖 初次使用?點擊查看「拆解式學習法」說明", expanded=False):
         st.markdown(f"""
         <div style="padding:15px; border-radius:10px; background-color:{bg_color}22; border-left:5px solid {theme_color};">
-            <h4 style="color:{theme_color}; margin-top:0;">如何使用此工具？</h4>
+            <h4 style="color:{theme_color}; margin-top:0;">如何使用此工具</h4>
             <ol class="responsive-text">
                 <li><b>搜尋字根：</b> 在下方輸入框輸入你想找的字根（如 <code>bio</code>）或含義（如 <code>生命</code>）。</li>
                 <li><b>觀察構造：</b> 點開單字後，重點看「構造拆解」，理解前綴、字根、後綴如何組合成新字。</li>
