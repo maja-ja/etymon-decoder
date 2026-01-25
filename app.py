@@ -392,109 +392,31 @@ def main():
             <p style="margin: 0; font-size: 1.8em; font-weight: bold; color: #000;">{total_words} <span style="font-size: 0.5em;">Words</span></p>
         </div>
     """, unsafe_allow_html=True)
+# 在 main() 開頭計算總字數
+    total_count = 0
+    for block in data:
+        for sub in block['sub_categories']:
+            for group in sub['root_groups']:
+                total_count += len(group['vocabulary'])
 
-    # --- 以下為各分頁呼叫邏輯 (維持不變) ---
-    # --- main() 內部的分頁邏輯修正 ---
-
-# --- 以下為各分頁呼叫邏輯 (完整修正版) ---
-# --- 導覽選單邏輯 (完整修正與防錯版) ---
-    
-    # 確保 data 存在，避免後續噴錯
-    if not data:
-        st.error("資料庫目前為空，請確認 Google Sheets 連結與格式是否正確。")
-        return
+    # 更新側邊欄顯示 (取代原本的 0 Words)
+    st.sidebar.metric("資料庫總計", f"{total_count} Words")
 
     if menu == "字根區":
         st.title("🗂️ 字根總覽 (A-Z 大區)")
         
-        if not data:
-            st.warning("⚠️ 系統未偵測到任何單字。請確認試算表中 'word' 欄位是否已填寫。")
-            # 顯示偵錯資訊
-            st.info("提示：程式目前預計從 A 欄(0)、L 欄(11)、W 欄(22) 等位置抓取資料。")
+        if total_count == 0:
+            st.error("❌ 讀取不到單字。請確認試算表 A、D、O 欄等 Word 欄位是否有填寫內容。")
             return
 
-        # 顯示 A-Z 摺疊選單
         for block in data:
             with st.expander(f"✨ 字母區塊：{block['letter']}"):
                 for sub in block['sub_categories']:
                     st.markdown(f"#### 📂 分類：{sub['name']}")
-                    
                     for group in sub['root_groups']:
                         st.info(f"**字根：** {' / '.join(group['roots'])} ({group['meaning']})")
-                        
-                        # 整理顯示資料
-                        display_df = []
-                        for v in group['vocabulary']:
-                            display_df.append({
-                                "單字": v['word'],
-                                "解釋": v['definition'],
-                                "翻譯": v['translation']
-                            })
+                        # 顯示單字表格
+                        display_df = [{"單字": v['word'], "解釋": v['definition'], "翻譯": v['translation']} for v in group['vocabulary']]
                         st.table(display_df)
-                    st.divider()
-    elif menu == "學習區":
-        ui_quiz_page(data)
-        
-    elif menu == "高中 7000 區":
-        # 使用 str() 確保比對穩定，兼容中英文
-        hs = [c for c in data if any(k in str(c['category']) for k in ["高中", "7000", "High School"])]
-        if hs:
-            count = sum(len(g['vocabulary']) for c in hs for g in c['root_groups'])
-            ui_domain_page(hs, f"高中核心區 ({count} 字)", "#2E7D32", "#E8F5E9")
-        else:
-            st.info("目前資料庫中尚無高中 7000 相關分類。")
-            
-    elif menu == "醫學區":
-        # 從所有大區塊的所有小分支中搜尋「醫學」關鍵字
-        med_data = []
-        for block in data:
-            for sub in block['sub_categories']:
-                if any(k in sub['name'] for k in ["醫學", "Medicine"]):
-                    med_data.append(sub)
-        
-        if med_data:
-            st.title("醫學專業區")
-            # 這裡重新封裝成 ui_domain_page 需要的格式或直接在此顯示
-            for sub in med_data:
-                with st.expander(f"📂 {sub['name']}"):
-                    # 顯示邏輯...
-                    pass
-        else:
-            st.warning("找不到醫學分類資料。")
-    elif menu == "法律區":
-        # 修正 NameError：先定義 law 變數並判斷是否存在
-        law = [c for c in data if any(k in str(c['category']) for k in ["法律", "Law", "Legal"])]
-        if law:
-            count = sum(len(g['vocabulary']) for c in law for g in c['root_groups'])
-            ui_domain_page(law, f"法律術語區 ({count} 字)", "#FFD700", "#1A1A1A")
-        else:
-            st.warning("找不到『法律』分類資料。")
-            
-    elif menu == "人工智慧區":
-        ai = [c for c in data if any(k in str(c['category']) for k in ["人工智慧", "AI", "Tech"])]
-        if ai:
-            count = sum(len(g['vocabulary']) for c in ai for g in c['root_groups'])
-            ui_domain_page(ai, f"AI 技術區 ({count} 字)", "#1565C0", "#E3F2FD")
-        else:
-            st.info("目前無 AI 相關分類資料。")
-            
-    elif menu == "心理與社會區":
-        psy = [c for c in data if any(k in str(c['category']) for k in ["心理", "社會", "Psych", "Soc"])]
-        if psy:
-            count = sum(len(g['vocabulary']) for c in psy for g in c['root_groups'])
-            ui_domain_page(psy, f"心理與社會科學 ({count} 字)", "#AD1457", "#FCE4EC")
-        else:
-            st.info("目前無心理與社會相關資料。")
-            
-    elif menu == "生物與自然區":
-        bio = [c for c in data if any(k in str(c['category']) for k in ["生物", "自然", "科學", "Bio", "Sci"])]
-        if bio:
-            count = sum(len(g['vocabulary']) for c in bio for g in c['root_groups'])
-            ui_domain_page(bio, f"生物與自然科學 ({count} 字)", "#2E7D32", "#E8F5E9")
-        else:
-            st.info("目前無生物與自然相關資料。")
-            
-    elif menu == "管理區":
-        ui_admin_page(data)
 if __name__ == "__main__":
     main()
