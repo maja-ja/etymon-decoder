@@ -176,44 +176,47 @@ def load_db():
         structured_data.append({"category": str(cat_name), "root_groups": root_groups})
     return structured_data
 import datetime
+import streamlit as st
 
 def ui_time_based_lofi():
     """
-    冥想專用 + 安全備案版本
-    晚上：432Hz 深層冥想 (高相容性連結)
-    白天：Lofi Girl 官方 (全球最穩定嵌入源)
+    根據使用者要求的四個區間自動切換最穩定的安全音樂
+    區間：06-12, 12-18, 18-23, 23-06
     """
     # 1. 取得台灣時間 (UTC+8)
     utc_now = datetime.datetime.utcnow()
     tw_now = utc_now + datetime.timedelta(hours=8)
     hour = tw_now.hour
 
-    # 2. 定義時段與精心挑選的 ID
+    # 2. 根據區間設定音樂 (使用 Lofi Girl 官方最穩定的直播連結)
     if 6 <= hour < 12:
-        mode_name = "🌅 晨間專注 (Lofi Study)"
-        # Lofi Girl - 最安全穩定的備案
-        video_id = "jfKfPfyJRdk" 
+        mode_name = "☀️ 晨間能量 (Morning)"
+        video_id = "DWcJFNfaw9c" # Lofi Girl - Morning
         icon = "🌅"
-    elif 12 <= hour < 19:
-        mode_name = "☕ 午後冥想 (432Hz DNA Healing)"
-        # 432Hz 療癒系，選用嵌入權限最鬆的頻道
-        video_id = "hdmvMc7itPs" 
-        icon = "🧘"
+    elif 12 <= hour < 18:
+        mode_name = "☕ 午後專注 (Study)"
+        video_id = "jfKfPfyJRdk" # Lofi Girl - Lofi Hip Hop
+        icon = "📖"
+    elif 18 <= hour < 23:
+        mode_name = "🌆 晚間複習 (Chill)"
+        video_id = "rUxyKA_-grg" # Lofi Girl - Sleepy Beats
+        icon = "🛋️"
     else:
-        # 深夜 432Hz 深層冥想 (這是你要的冥想核心)
-        mode_name = "🌙 深夜冥想 (432Hz Deep Sleep)"
-        # 這組 ID 是目前 YouTube 上 432Hz 嵌入成功率最高的
-        video_id = "VpxubXmU0BE" 
-        icon = "🧘‍♂️"
+        # 23:00 - 06:00
+        mode_name = "🌙 深夜療癒 (Sleep)"
+        video_id = "rUxyKA_-grg" # 深夜使用同樣最穩定的睡眠頻道
+        icon = "😴"
 
-    with st.sidebar.expander(f"✨ 療癒音樂盒: {mode_name}", expanded=True):
-        st.write(f"🕒 台灣時間: {tw_now.strftime('%H:%M')}")
+    # 3. 在側邊欄呈現介面
+    with st.sidebar.expander(f"🎵 時光音樂：{mode_name}", expanded=True):
+        st.write(f"🕒 台灣時間：{tw_now.strftime('%H:%M')}")
         
-        # 加上特定參數優化 iPhone 播放體驗
-        # modestbranding=1 (隱藏標誌), playsinline=1 (防止跳出)
+        # 嵌入播放器
+        # playsinline=1 讓 iPhone 可以在網頁內播放
+        # rel=0 & modestbranding=1 減少干擾
         embed_code = f"""
-            <div style="border-radius:15px; overflow:hidden; border: 2px solid #9575CD; background: #000;">
-                <iframe width="100%" height="200" 
+            <div style="border-radius:12px; overflow:hidden; border: 1px solid #ddd; background: #000;">
+                <iframe width="100%" height="180" 
                     src="https://www.youtube.com/embed/{video_id}?rel=0&modestbranding=1&playsinline=1" 
                     frameborder="0" 
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
@@ -222,9 +225,8 @@ def ui_time_based_lofi():
             </div>
         """
         st.markdown(embed_code, unsafe_allow_html=True)
-        st.caption(f"目前頻道：{icon} {mode_name}")
-        st.markdown("<small style='opacity:0.5;'>iPhone 點擊播放後，若無聲請檢查側邊靜音開關。</small>", unsafe_allow_html=True)
-
+        st.caption(f"目前處於 {icon} 時段，適合專注背單字。")
+        st.info("💡 iPhone 需點擊畫面中紅色按鈕方可發聲。")
 
 
 def save_feedback_to_gsheet(word, feedback_type, comment):
