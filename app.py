@@ -334,25 +334,23 @@ def main():
     # 3. 頁面邏輯
     if menu == "搜尋":
         st.title("🔍 全域單字搜尋")
-        query = st.text_input("輸入單字、字根或中文關鍵字（例如：ante, 之前, body）", "").strip().lower()
+        query = st.text_input("輸入單字、字根或中文關鍵字", "").strip().lower()
 
         if query:
             results = []
-            # 遍歷所有層級進行搜尋
             for block in data:
                 for sub in block.get('sub_categories', []):
                     for group in sub.get('root_groups', []):
-                        # 檢查字根是否匹配
-                        root_match = any(query in r.lower() for r in group['roots'])
-                        meaning_match = query in group['meaning'].lower()
-                        
                         for v in group.get('vocabulary', []):
-                            # 檢查單字、拆解、定義、翻譯是否匹配
-                            word_match = query in v['word'].lower()
-                            def_match = query in v['definition'].lower()
-                            trans_match = query in v.get('translation', '').lower()
+                            # 多欄位檢索邏輯
+                            content_to_search = (
+                                str(v['word']) + 
+                                str(v['definition']) + 
+                                str(v.get('translation', '')) + 
+                                str(group['roots'])
+                            ).lower()
                             
-                            if root_match or meaning_match or word_match or def_match or trans_match:
+                            if query in content_to_search:
                                 results.append({
                                     "data": v,
                                     "cat": sub['name'],
@@ -362,13 +360,14 @@ def main():
             if results:
                 st.write(f"找到 {len(results)} 個相關結果：")
                 for item in results:
+                    # 搜尋結果的標題展開
                     with st.expander(f"📖 {item['data']['word']} (分類：{item['cat']})"):
                         st.caption(f"字根來源：{item['root_info']}")
-                        # 調用您已有的渲染函式
-                        render_word_card(item['data'], "#1E88E5")
+                        # --- 修正處：確保只傳入 2 個參數 ---
+                        render_word_card(item['data'], theme_color="#1E88E5")
             else:
                 st.info("查無結果，請嘗試其他關鍵字。")
-    elif menu == "字根區":
+    if menu == "字根區":
         st.title("🗂️ 字根總覽 (A-Z 大區)")
         if not data:
             st.warning("目前讀取不到資料。請確認試算表 A、L、W 欄等起始位是否有內容。")
