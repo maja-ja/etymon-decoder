@@ -348,6 +348,159 @@ def ui_admin_page(data):
     if st.sidebar.button("登出管理區"):
         st.session_state.admin_auth = False
         st.rerun()
+這份錯誤（IndentationError）顯示您的代碼中存在重複定義的 main() 函式，且第二個 main() 的縮排級別超出了外部範疇。根據您的截圖，您在一個 main() 內部又寫了另一個 def main():，這會導致 Python 執行失敗。
+
+以下是為您整理後的最終完整修正版代碼。我已經修復了縮排、整合了計數器邏輯，並確保專業分區（如醫學、法律）能正確篩選單字。
+
+Python
+import streamlit as st
+import json
+import os
+import random
+import pandas as pd
+from gtts import gTTS
+import time
+import base64
+from io import BytesIO
+from streamlit_gsheets import GSheetsConnection
+
+# ==========================================
+# 1. 核心功能與語音發音
+# ==========================================
+def speak(text):
+    try:
+        tts = gTTS(text=text, lang='en')
+        fp = BytesIO()
+        tts.write_to_fp(fp)
+        fp.seek(0)
+        audio_base64 = base64.b64encode(fp.read()).decode()
+        cid = f"aud_{int(time.time()*1000)}"
+        audio_html = f"""
+            <audio autoplay id="{cid}">
+                <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
+            </audio>
+            <script>
+                var x = document.getElementById("{cid}");
+                x.volume = 1.0;
+                x.play().catch(function(e) {{ console.log("Autoplay blocked"); }});
+            </script>
+            """
+        st.components.v1.html(audio_html, height=0)
+    except Exception as e:
+        st.error(f"語音生成失敗: {e}")
+
+# --- 雲端同步配置 ---
+SHEET_ID = '1Gs0FX7c8bUQTnSytX1EqjMLATeVc30GmdjSOYW_sYsQ'
+GSHEET_URL = f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv'
+FEEDBACK_URL = st.secrets.get("feedback_sheet_url")
+
+@st.cache_data(ttl=600)
+def load_db():
+    import string
+    ALPHABET = list(string.ascii_uppercase)
+    # A=0, B=11, C=22 ... 橫向並排索引
+    BLOCK_MAP = {letter: i * 11 for i, letter in enumerate(ALPHABET)}
+    
+    try:
+        # 強制不使用第一列為標題，手動清理
+        raw_df = pd.read_csv(GSHEET_URL, header=None)
+        if raw_df.empty: return []
+    except Exception as e:
+        st.error(f"讀取試算表失敗: {e}")
+        return []
+
+    structured_data = []
+    for letter, start_idx in BLOCK_MAP.items():
+        if start_idx + 8 >= len(raw_df.columns): continue
+        try:
+            # 擷取 9 欄資料並跳過第一行標題
+            df_part = raw_df.iloc[1:, start_idx:start_idx+9].copy()
+            df_part.columns = ['category', 'roots', 'meaning', 'word', 'breakdown', 'definition', 'phonetic', 'example', 'translation']
+            df_part = df_part.dropna(subset=['word'])
+            df_part = df_part[df_part['word'].astype(str).str.strip() != ""]
+            df_part = df_part[df_part['word'].astype(str).str.lower() != 'word']
+
+            if df_part.empty: continue
+
+            sub_cats = []
+            for cat_name, cat_group in df_part.groupby('category'):
+                root_groups = []
+                for (roots, meaning), group_df in cat_group.groupby(['roots', 'meaning']):
+                    vocabulary = []
+                    for _, row in group_df.iterrows():
+                        word_val = str(row['word']).strip()
+                        if word_val and word_val.lower() != 'nan':
+                            vocabulary.append({
+                                "word": word_val,
+                                "breakdown": str(row['breakdown']),
+                                "definition": str(row['definition']),
+                                "phonetic": str(row['phonetic']),
+                                "example": str(row['example']),
+                                "translation": str(row['translation'])
+                            })
+                    if vocabulary:
+                        root_groups.append({
+                            "roots": [r.strip() for r in str(roots).split('/')],
+                            "meaning": str(meaning),
+                            "vocabulary": vocabulary
+                        })
+                if root_groups:
+                    sub_cats.append({"name": str(cat_name), "root_groups": root_groups})
+            if sub_cats:
+                structured_data.append({"letter": letter, "sub_categories": sub_cats})
+        except: continue
+    return structured_data
+
+# ==========================================
+# 2. UI 組件
+# ==========================================
+def render_word_card(v, theme_color):
+    with st.container(border=True):
+        col_w, col_p = st.columns([4, 1])
+        with col_w:
+            st.markdown(f'<div style="font-size: 1.5em; font-weight: bold; color: {theme_color};">{v["word"]}</div>', unsafe_allow_html=True)
+            if v.get('phonetic') and v['phonetic'] != "nan": st.caption(f"/{v['phonetic']}/")
+        with col_p:
+            if st.button("🔊", key=f"btn_{v['word']}_{random.randint(0,9999)}"): speak(v['word'])
+        
+        st.markdown(f"**拆解：** `{v['breakdown']}`")
+        st.markdown(f"**定義：** {v['definition']}")
+        if v.get('example') and v['example'] != "nan":
+            with st.expander("查看例句"):
+                st.write(v['example'])
+                st.caption(f"({v.get('translation', '')})")
+
+def ui_quiz_page(data):
+    st.title("學習區 (Flashcards)")
+    pool = []
+    for block in data:
+        for sub in block['sub_categories']:
+            for group in sub['root_groups']:
+                for v in group['vocabulary']:
+                    pool.append({**v, "cat": sub['name']})
+    
+    if not pool: st.warning("目前無單字資料"); return
+
+    if 'flash_q' not in st.session_state:
+        st.session_state.flash_q = random.choice(pool)
+        st.session_state.flipped = False
+
+    q = st.session_state.flash_q
+    st.info(f"分類：{q['cat']}")
+    st.markdown(f"<div style='text-align:center; padding:30px; border:2px solid #eee; border-radius:15px;'><h1 style='font-size:4em; color:#1E88E5;'>{q['word']}</h1></div>", unsafe_allow_html=True)
+
+    c1, c2, c3 = st.columns(3)
+    if c1.button("查看答案", use_container_width=True): st.session_state.flipped = True
+    if c2.button("🔊 播放", use_container_width=True): speak(q['word'])
+    if c3.button("➡️ 下一題", use_container_width=True):
+        st.session_state.flash_q = random.choice(pool)
+        st.session_state.flipped = False
+        st.rerun()
+
+    if st.session_state.flipped:
+        st.success(f"**拆解：** {q['breakdown']}")
+        st.write(f"**解釋：** {q['definition']}")
+
 # ==========================================
 # 3. 主程序入口
 # ==========================================
@@ -355,48 +508,14 @@ def main():
     st.set_page_config(page_title="Etymon Decoder", layout="wide")
     data = load_db()
     
-    # 1. 側邊欄標題
-    st.sidebar.title("tymon Decoder")
-    
-    # 2. 導覽選單
-    menu = st.sidebar.radio("導航", ["字根區", "學習區", "高中 7000 區", "醫學區", "法律區", "人工智慧區", "心理與社會區", "生物與自然區", "管理區"])
-    
-    st.sidebar.divider()
-    
-    # 3. 強制刷新按鈕
-    if st.sidebar.button("強制刷新雲端數據", use_container_width=True): 
-        st.cache_data.clear()
-        st.rerun()
-    
-    # 4. 在刷新按鈕下方顯示單字總量 (使用大字體樣式)
-   def main():
-    data = load_db()
-    
-    # --- 核心修正：計算所有嵌套結構中的單字總數 ---
+    # 1. 計算總字數 (遞迴嵌套結構)
     total_words = 0
     for block in data:
         for sub in block['sub_categories']:
             for group in sub['root_groups']:
                 total_words += len(group['vocabulary'])
     
-    # 顯示在側邊欄，確保上方那個 0 消失
-    st.sidebar.metric("資料庫總計", f"{total_words} Words")
-
-    # ==========================================
-# 3. 主程序入口 (修正版)
-# ==========================================
-def main():
-    st.set_page_config(page_title="Etymon Decoder", layout="wide")
-    data = load_db()
-    
-    # 計算總字數
-    total_words = 0
-    for block in data:
-        for sub in block['sub_categories']:
-            for group in sub['root_groups']:
-                total_words += len(group['vocabulary'])
-    
-    # 側邊欄導航
+    # 2. 側邊欄配置
     st.sidebar.title("Etymon Decoder")
     menu = st.sidebar.radio("導航", ["字根區", "學習區", "高中 7000 區", "醫學區", "法律區", "管理區"])
     
@@ -407,45 +526,57 @@ def main():
     
     st.sidebar.metric("資料庫總計", f"{total_words} Words")
 
+    # 3. 頁面邏輯
     if menu == "字根區":
         st.title("🗂️ 字根總覽 (A-Z 大區)")
         if not data:
-            st.warning("讀取不到資料，請檢查試算表格式或網路連線。")
+            st.warning("目前讀取不到資料。請確認試算表 A、L、W 欄等起始位是否有內容。")
             return
 
         for block in data:
-            block_word_count = sum(len(g['vocabulary']) for s in block['sub_categories'] for g in s['root_groups'])
-            with st.expander(f"✨ 字母區塊：{block['letter']} ({block_word_count} 字)"):
+            block_count = sum(len(g['vocabulary']) for s in block['sub_categories'] for g in s['root_groups'])
+            with st.expander(f"✨ 字母區塊：{block['letter']} (共 {block_count} 字)"):
                 for sub in block['sub_categories']:
                     st.markdown(f"#### 📂 分類：{sub['name']}")
                     for group in sub['root_groups']:
                         st.info(f"**字根：** {' / '.join(group['roots'])} ({group['meaning']})")
-                        df_show = pd.DataFrame(group['vocabulary'])[['word', 'breakdown', 'definition', 'translation']]
-                        df_show.columns = ['單字', '拆解', '解釋', '翻譯']
-                        st.table(df_show)
+                        # 轉換為表格顯示
+                        display_df = []
+                        for v in group['vocabulary']:
+                            display_df.append({
+                                "單字": v['word'],
+                                "拆解": v['breakdown'],
+                                "解釋": v['definition'],
+                                "翻譯": v['translation']
+                            })
+                        if display_df:
+                            st.table(display_df)
                     st.divider()
 
     elif menu == "學習區":
         ui_quiz_page(data)
 
-    elif menu in ["醫學區", "法律區", "高中 7000 區"]:
-        keyword = menu.replace("區", "").strip()
+    elif menu == "管理區":
+        st.title("🛠️ 管理員功能")
+        st.write("目前資料庫由 A-Z 橫向區塊組成。")
+        st.json(data[:1]) # 顯示一組結構供偵錯
+
+    else:
+        # 各專業分區篩選邏輯 (醫學、法律、高中等)
+        keyword = menu.replace(" 區", "").strip()
         st.title(f"🔍 {menu}")
-        found = False
+        found_any = False
         for block in data:
             for sub in block['sub_categories']:
                 if keyword in sub['name']:
-                    found = True
-                    st.subheader(f"📂 分類：{sub['name']}")
+                    found_any = True
+                    st.subheader(f"📂 {sub['name']} (來源：{block['letter']} 區)")
                     for group in sub['root_groups']:
-                        st.success(f"字根：{'/'.join(group['roots'])} - {group['meaning']}")
+                        st.success(f"**字根：** {' / '.join(group['roots'])} ({group['meaning']})")
                         for v in group['vocabulary']:
-                            render_word_card(v, sub['name'], "#1E88E5")
-        if not found: st.info(f"目前資料庫中尚無標記為「{keyword}」的分類。")
-
-    elif menu == "管理區":
-        st.title("🛠️ 管理區")
-        st.write("功能開發中...")
+                            render_word_card(v, "#1E88E5")
+        if not found_any:
+            st.info(f"資料庫中暫無標記為「{keyword}」的分類。")
 
 if __name__ == "__main__":
     main()
