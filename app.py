@@ -240,32 +240,29 @@ def ui_feedback_component(word):
                 st.success("感謝回報！")
 def ui_newbie_whiteboard():
     st.markdown("""
-    ## 🚀 歡迎來到 Etymon Decoder！
-    這是一個讓你透過「拆解」來征服英文單字的工具。
+    <div style="background-color: var(--secondary-background-color); padding: 25px; border-radius: 15px; border: 2px dashed var(--primary-color);">
+        <h2 style="margin-top:0; text-align:center;">歡迎使用 Etymon Decoder</h2>
+        <p style="text-align:center; opacity:0.8;">這是一個專為「拆解式學習」設計的工具，幫你從根本理解英文。</p>
+        <hr>
+        <h4 style="color:var(--primary-color);">1. 核心邏輯：拆解積木</h4>
+        <p>英文單字是由積木組成的。例如：<b>Re (回) + Port (搬運) = Report (報告)</b>。</p>
+    """, unsafe_allow_html=True)
+
+    # 此處建議放入您提供的圖片 (例如單字結構圖)
+    # st.image("path_to_your_image.png", caption="單字結構示範")
     
-    ### 1. 別再死背，要「看透」單字
-    英文單字就像樂高，由前綴、字根、後綴組成。
-    """)
-    
-    # 此處放置您的第一張圖片：展示單字拆解的概念
-    # st.image("your_image_url_1.png", caption="單字構造範例")
-    
-    st.markdown("""
-    ### 2. 如何開始你的第一步？
-    - **Step 1：** 在左側導航欄選擇你的目標（如：國小、高中）。
-    - **Step 2：** 在上方搜尋框輸入你感興趣的字根或中文意思。
-    - **Step 3：** 點開搜尋結果，觀察單字的「構造拆解」。
-    """)
-    
-    # 
 
     st.markdown("""
-    ### 3. 進階學習：閃卡練習
-    當你瀏覽完一輪後，可以前往左側的 **[學習區]**。系統會隨機出題，測試你是否真的記住了單字的結構！
-    
-    ---
-    **小撇步：** 側邊欄往下滑有「分類篩選」，如果你不知道要搜什麼，可以先在那邊找找看！
-    """)
+        <h4 style="color:var(--primary-color);">2. 快速上手步驟</h4>
+        <ul class="responsive-text">
+            <li><b>第一步：鎖定領域</b> - 從左側選單選擇適合你的程度（如：國中區）。</li>
+            <li><b>第二步：精準搜尋</b> - 在搜尋框輸入字根 (如 <code>bio</code>) 或含義 (如 <code>生命</code>)。</li>
+            <li><b>第三步：聽音看拆解</b> - 點開結果，觀看拆解公式並點擊播放聆聽發音。</li>
+        </ul>
+        <h4 style="color:var(--primary-color);">3. 找不到想搜尋的？</h4>
+        <p>往左下角看！側邊欄有<b>「分類篩選」</b>，可以快速瀏覽特定學科的單字庫。</p>
+    </div>
+    """, unsafe_allow_html=True)
 def ui_quiz_page(data):
     st.markdown('<div class="responsive-title" style="font-weight:bold;">學習區 (Flashcards)</div>', unsafe_allow_html=True)
     cat_options_map = {"全部練習": "全部練習"}
@@ -341,37 +338,63 @@ def ui_quiz_page(data):
             </div>
         """, unsafe_allow_html=True)
 def ui_search_page(data, selected_cat):
-    # 任務 1: 在標題旁加入使用說明按鈕
+    # --- 任務 1：標題與使用說明彈窗 ---
     col_title, col_help = st.columns([3, 1])
     with col_title:
-        st.title("搜尋與瀏覽")
+        st.markdown('<h1 class="responsive-title">搜尋與瀏覽</h1>', unsafe_allow_html=True)
     with col_help:
-        # 使用 popover 作為說明介面
-        with st.popover("📖 使用說明"):
-            ui_newbie_whiteboard() # 呼叫任務 3 的白板內容
+        # 在主介面右上角放一個顯眼的說明按鈕
+        with st.popover("📖 使用教學", use_container_width=True):
+            ui_newbie_whiteboard() # 呼叫任務 3 的白板
 
+    # 篩選分類
     relevant = data if selected_cat == "全部顯示" else [c for c in data if c['category'] == selected_cat]
     
-    # 任務 2: 保持乾淨的輸入框，移除所有重複的 Pills 按鈕
-    query = st.text_input("輸入字根 (如: bio) 或 中文含義 (如: 生命)...", placeholder="請輸入關鍵字...").strip().lower()
+    # --- 任務 2：純搜尋模式 (無按鈕) ---
+    st.markdown("### 🔍 快速搜尋")
+    query = st.text_input(
+        "輸入字根或含義", 
+        placeholder="例如：act, bio, 動作, 生命...", 
+        key="global_search_input"
+    ).strip().lower()
     
     if not query:
-        # 任務 3: 如果使用者還沒搜尋，顯示引導白板
-        st.info("💡 提示：側邊欄下方有「分類篩選」，可以先選擇感興趣的領域後再搜尋。")
+        # --- 任務 3：新手進入時看到的白板引導 ---
+        st.info("💡 提示：請在上方搜尋框輸入關鍵字，或使用側邊欄的「分類篩選」縮小範圍。")
         ui_newbie_whiteboard()
         return
 
     # 執行搜尋邏輯
+    found_results = False
     for cat in relevant:
         for group in cat.get('root_groups', []):
-            matched = [v for v in group['vocabulary'] if query in v['word'].lower() or any(query in r.lower() for r in group['roots'])]
-            if matched:
-                with st.expander(f"✨ {cat['category']} | {'/'.join(group['roots'])} ({group['meaning']})", expanded=True):
-                    for v in matched:
-                        st.markdown(f"**{v['word']}** `{v['breakdown']}`: {v['definition']}")
-                        if st.button("播放發音", key=f"btn_{v['word']}"):
-                            speak(v['word'])
-
+            # 檢查字根或單字是否匹配
+            matched_vocab = [
+                v for v in group['vocabulary'] 
+                if query in v['word'].lower() or any(query in r.lower() for r in group['roots'])
+            ]
+            
+            if matched_vocab:
+                found_results = True
+                root_label = f"{'/'.join(group['roots'])} ({group['meaning']})"
+                with st.expander(f"✨ {cat['category']} | {root_label}", expanded=True):
+                    for v in matched_vocab:
+                        st.markdown(f'<div class="responsive-word" style="color:var(--primary-color); font-weight:bold;">{v["word"]}</div>', unsafe_allow_html=True)
+                        
+                        c1, c2, _ = st.columns([1, 1, 2])
+                        with c1:
+                            if st.button("播放", key=f"p_{v['word']}_{cat['category']}"): speak(v['word'])
+                        with c2:
+                            ui_feedback_component(v['word'])
+                        
+                        st.markdown(f"""
+                            <div class="breakdown-container responsive-breakdown">{v['breakdown']}</div>
+                            <div class="responsive-text"><b>中文定義：</b> {v['definition']}</div>
+                            <hr style="opacity:0.1; margin:15px 0;">
+                        """, unsafe_allow_html=True)
+    
+    if not found_results:
+        st.warning("找不到匹配的字根或單字，請嘗試換個關鍵字。")
 def ui_admin_page(data):
     st.title("管制區")
     correct_password = st.secrets.get("admin_password", "8787")
@@ -405,65 +428,76 @@ def ui_admin_page(data):
 # ==========================================
 def main():
     st.set_page_config(page_title="Etymon Decoder", layout="wide")
-    inject_custom_css() # 新增：注入自適應樣式
+    inject_custom_css() 
     data = load_db()
+    
+    # 側邊欄標題
     st.sidebar.title("Etymon Decoder")
-    menu = st.sidebar.radio("導航", ["字根區", "學習區", "國小區", "國中區", "高中區", "醫學區", "法律區", "人工智慧區", "心理與社會區", "生物與自然區", "管理區"], key="main_navigation")
+    
+    # --- 任務 1：側欄頂部的使用說明按鈕 ---
+    # 使用 popover 容器建立一個乾淨的說明介面
+    with st.sidebar.popover("📖 使用說明 (新手必看)", use_container_width=True):
+        ui_newbie_whiteboard() # 呼叫任務 3 的白板內容
+        
+    # 主選單導航
+    menu = st.sidebar.radio(
+        "導航頻道", 
+        ["字根區", "學習區", "國小區", "國中區", "高中區", "醫學區", "法律區", "人工智慧區", "心理與社會區", "生物與自然區", "管理區"], 
+        key="main_navigation"
+    )
+    
     st.sidebar.divider()
-    with st.sidebar.popover("📖 使用說明", use_container_width=True):
-        st.markdown()
+    
+    # 強制刷新按鈕
     if st.sidebar.button("強制刷新雲端數據", use_container_width=True): 
         st.cache_data.clear()
         st.rerun()
+
+    # 資料庫統計顯示
     _, total_words = get_stats(data)
     st.sidebar.markdown(f"""
-        <div style="
-            text-align: center; 
-            padding: 15px; 
-            background-color: var(--secondary-background-color); 
-            border: 1px solid rgba(128, 128, 128, 0.2);
-            border-radius: 12px; 
-            margin-top: 20px;
-        ">
-            <p style="margin: 0; font-size: 0.9em; color: var(--text-color); opacity: 0.8;">資料庫總計</p>
-            <p style="margin: 0; font-size: 1.8em; font-weight: bold; color: var(--text-color);">
+        <div class="stats-container">
+            <p style="margin: 0; font-size: 0.9em; opacity: 0.8;">資料庫總計</p>
+            <p style="margin: 0; font-size: 1.8em; font-weight: bold;">
                 {total_words} <span style="font-size: 0.5em;">Words</span>
             </p>
         </div>
     """, unsafe_allow_html=True)
-    # 路由邏輯 (保留原功能)
-# 在 main() 函式的 "字根區" 邏輯中：
+
+    # --- 路由邏輯與任務 2 & 3 的實作 ---
     if menu == "字根區":
+        # 在側邊欄下方提供分類篩選 (輔助新手)
+        st.sidebar.markdown("### 🔍 進階篩選")
         cats = ["全部顯示"] + sorted(list(set(c['category'] for c in data)))
-    # 將原本的 selectbox 改為 radio
-        selected_cat = st.sidebar.radio("分類篩選", cats, key="cat_filter_radio")
+        selected_cat = st.sidebar.selectbox("依領域過濾", cats, key="cat_filter_select")
+        
+        # 呼叫修改後的字根區 (任務 2：純搜尋模式)
         ui_search_page(data, selected_cat)
-    elif menu == "學習區": ui_quiz_page(data)
-    elif menu == "國小區":
-        elem = [c for c in data if any(k in str(c.get('category','')) for k in ["國小", "Elementary"])]
-        ui_domain_page(elem, f"國小基礎字根 ({sum(len(g['vocabulary']) for c in elem for g in c['root_groups'])} 字)", "#FB8C00", "#FFF3E0")
-    elif menu == "國中區":
-        jhs = [c for c in data if any(k in str(c.get('category','')) for k in ["國中", "Junior"])]
-        ui_domain_page(jhs, f"國中基礎字根 ({sum(len(g['vocabulary']) for c in jhs for g in c['root_groups'])} 字)", "#00838F", "#E0F7FA")
-    elif menu == "高中區":
-        hs = [c for c in data if any(k in str(c.get('category','')) for k in ["高中", "7000"])]
-        ui_domain_page(hs, f"高中核心字根 ({sum(len(g['vocabulary']) for c in hs for g in c['root_groups'])} 字)", "#2E7D32", "#E8F5E9")
-    elif menu == "醫學區":
-        med = [c for c in data if "醫學" in str(c.get('category',''))]
-        ui_domain_page(med, f"醫學專業字根 ({sum(len(g['vocabulary']) for c in med for g in c['root_groups'])} 字)", "#C62828", "#FFEBEE")
-    elif menu == "法律區":
-        law = [c for c in data if "法律" in str(c.get('category',''))]
-        ui_domain_page(law, f"法律術語字根 ({sum(len(g['vocabulary']) for c in law for g in c['root_groups'])} 字)", "#FFD700", "#1A1A1A")
-    elif menu == "人工智慧區":
-        ai = [c for c in data if any(k in str(c.get('category','')) for k in ["人工智慧", "AI","資工"])]
-        ui_domain_page(ai, f"人工智慧相關字根 ({sum(len(g['vocabulary']) for c in ai for g in c['root_groups'])} 字)", "#1565C0", "#E3F2FD")
-    elif menu == "心理與社會區":
-        psy = [c for c in data if any(k in str(c.get('category','')) for k in ["心理", "社會", "Psych", "Soc"])]
-        ui_domain_page(psy, f"心理與社會科學字根 ({sum(len(g['vocabulary']) for c in psy for g in c['root_groups'])} 字)", "#AD1457", "#FCE4EC")
-    elif menu == "生物與自然區":
-        bio = [c for c in data if any(k in str(c.get('category','')) for k in ["生物", "自然", "科學", "Bio", "Sci"])]
-        ui_domain_page(bio, f"生物與自然科學字根 ({sum(len(g['vocabulary']) for c in bio for g in c['root_groups'])} 字)", "#2E7D32", "#E8F5E9")
-    elif menu == "管理區": ui_admin_page(data)
+        
+    elif menu == "學習區": 
+        ui_quiz_page(data)
+        
+    else:
+        # 處理各個專業分區 (國小、國中、高中等)
+        domain_configs = {
+            "國小區": {"key": "國小", "title": "國小基礎", "color": "#FB8C00", "bg": "#FFF3E0"},
+            "國中區": {"key": "國中", "title": "國中核心", "color": "#00838F", "bg": "#E0F7FA"},
+            "高中區": {"key": "高中", "title": "高中進階", "color": "#2E7D32", "bg": "#E8F5E9"},
+            "醫學區": {"key": "醫學", "title": "醫學專業", "color": "#C62828", "bg": "#FFEBEE"},
+            "法律區": {"key": "法律", "title": "法律術語", "color": "#FFD700", "bg": "#1A1A1A"},
+            "人工智慧區": {"key": "人工智慧", "title": "AI/資工", "color": "#1565C0", "bg": "#E3F2FD"},
+            "心理與社會區": {"key": "心理", "title": "心理社會", "color": "#AD1457", "bg": "#FCE4EC"},
+            "生物與自然區": {"key": "生物", "title": "生物自然", "color": "#2E7D32", "bg": "#E8F5E9"},
+            "管理區": {"key": "管理", "title": "管理學科", "color": "#4527A0", "bg": "#F3E5F5"}
+        }
+        
+        if menu in domain_configs:
+            cfg = domain_configs[menu]
+            sub_data = [c for c in data if cfg['key'] in str(c.get('category',''))]
+            total = sum(len(g['vocabulary']) for c in sub_data for g in c['root_groups'])
+            ui_domain_page(sub_data, f"{cfg['title']}字根 ({total} 字)", cfg['color'], cfg['bg'])
+        elif menu == "管理區": 
+            ui_admin_page(data)
 
 if __name__ == "__main__":
     main()
