@@ -175,6 +175,35 @@ def load_db():
             })
         structured_data.append({"category": str(cat_name), "root_groups": root_groups})
     return structured_data
+def ui_bg_music():
+    import datetime
+    
+    # 1. 取得目前小時 (24小時制)
+    now = datetime.datetime.now()
+    hr = now.hour
+    
+    # 2. 根據時間選擇音樂 (這裡使用 YouTube 的嵌入播放器，因為它在 iPhone 上最穩)
+    # 我們選擇 YouTube 上 24/7 直播的 Lofi 頻道
+    if 5 <= hr < 12:
+        mode, icon, vid = "晨間活力 Morning", "🌅", "https://www.youtube.com/embed/S_MOd40zlYU"
+    elif 12 <= hr < 18:
+        mode, icon, vid = "午後專注 Focus", "☕", "https://www.youtube.com/embed/jfKfPfyJRdk"
+    else:
+        mode, icon, vid = "深夜助眠 Sleep", "🌙", "https://www.youtube.com/embed/n61ULEU7FZ0"
+
+    # 3. 顯示音樂介面
+    with st.sidebar.expander(f"{icon} 背景音樂：{mode}", expanded=False):
+        st.markdown(f"""
+            <div style="text-align: center;">
+                <p style="font-size: 0.8rem; opacity: 0.8;">iPhone 使用者請點擊下方播放按鈕</p>
+                <iframe width="100%" height="150" 
+                    src="{vid}?autoplay=0&controls=1&loop=1" 
+                    frameborder="0" allow="autoplay; encrypted-media; picture-in-picture" 
+                    allowfullscreen>
+                </iframe>
+            </div>
+        """, unsafe_allow_html=True)
+
 def save_feedback_to_gsheet(word, feedback_type, comment):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
