@@ -431,21 +431,20 @@ def main():
     inject_custom_css() 
     data = load_db()
     
-    # --- 側邊欄配置 ---
+    # 1. 側邊欄：導航菜單 (決定 menu 變數)
     st.sidebar.title("Etymon Decoder")
-    
-    # 導航頻道切換
     menu = st.sidebar.radio(
         "導航", 
         ["字根區", "學習區", "國小區", "國中區", "高中區", "醫學區", "法律區", "人工智慧區", "心理與社會區", "生物與自然區", "管理區"], 
-        key="main_navigation"
+        key="nav_menu" # 確保 key 固定
     )
     
     st.sidebar.divider()
 
-    # 任務 1：在側欄字根區上方放置「使用說明」按鈕
-    with st.sidebar.popover("📖 使用說明 (新手必看)", use_container_width=True):
-        ui_newbie_whiteboard() # 呼叫任務 3 的白板內容
+    # 任務 1：側欄說明按鈕 (截圖 6.09.18 左側)
+    with st.sidebar.expander("📖 使用說明 (新手必看)", expanded=False):
+        st.info("歡迎使用！請先選擇導航頻道，再配合下方分類篩選開始學習。")
+        # 這裡可以放簡短版說明
 
     # 強制刷新按鈕
     if st.sidebar.button("強制刷新雲端數據", use_container_width=True): 
@@ -456,46 +455,46 @@ def main():
     _, total_words = get_stats(data)
     st.sidebar.markdown(f"""
         <div class="stats-container">
-            <p style="margin: 0; font-size: 0.9em; opacity: 0.8;">資料庫總計</p>
-            <p style="margin: 0; font-size: 1.8em; font-weight: bold;">
-                {total_words} <span style="font-size: 0.5em;">Words</span>
-            </p>
+            <p style="margin: 0; font-size: 0.8em; opacity: 0.7;">資料庫總計</p>
+            <p style="margin: 0; font-size: 1.5em; font-weight: bold;">{total_words} Words</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # 分類篩選區 (特別提示新手往下滑)
-    st.sidebar.markdown("### 分類篩選")
-    cats = ["全部顯示"] + sorted(list(set(c['category'] for c in data)))
-    selected_cat = st.sidebar.radio("選擇領域", cats, key="cat_filter_radio")
-    st.sidebar.caption("💡 技巧：往下滑動可切換不同領域的字根。")
+    # 2. 分類篩選 (僅在字根區或其他分區時顯示)
+    st.sidebar.subheader("分類篩選")
+    cats = ["全部顯示", "國小基礎", "專業心理", "專業法律", "專業生物", "專業資工", "專業醫學", "進階高中", "高中必備"]
+    # 根據實際 data 取得動態分類或使用固定分類
+    selected_cat = st.sidebar.radio("選擇領域", cats, key="domain_filter")
+    st.sidebar.caption("💡 技巧：往下選取不同領域以篩選單字。")
 
-    # --- 主內容區域路由 ---
+    # --- 3. 關鍵路由邏輯：確保頁面內容隨 menu 切換 ---
+    st.divider() # 裝飾用
+
     if menu == "字根區":
-        # 任務 2：呼叫已刪除按鈕、改為純搜尋模式的 ui_search_page
+        # 任務 2：呼叫搜尋介面
         ui_search_page(data, selected_cat)
         
     elif menu == "學習區": 
         ui_quiz_page(data)
         
     else:
-        # 其他分區 (國小、國中、高中等)
-        domain_configs = {
-            "國小區": {"key": "國小", "title": "國小基礎", "color": "#FB8C00", "bg": "#FFF3E0"},
-            "國中區": {"key": "國中", "title": "國中核心", "color": "#00838F", "bg": "#E0F7FA"},
-            "高中區": {"key": "高中", "title": "高中進階", "color": "#2E7D32", "bg": "#E8F5E9"},
-            "醫學區": {"key": "醫學", "title": "醫學專業", "color": "#C62828", "bg": "#FFEBEE"},
-            "法律區": {"key": "法律", "title": "法律術語", "color": "#FFD700", "bg": "#1A1A1A"},
-            "人工智慧區": {"key": "人工智慧", "title": "AI/資工", "color": "#1565C0", "bg": "#E3F2FD"},
-            "心理與社會區": {"key": "心理", "title": "心理社會", "color": "#AD1457", "bg": "#FCE4EC"},
-            "生物與自然區": {"key": "生物", "title": "生物自然", "color": "#2E7D32", "bg": "#E8F5E9"},
-            "管理區": {"key": "管理", "title": "管理學科", "color": "#4527A0", "bg": "#F3E5F5"}
+        # 其他分區：根據選中的 menu 篩選數據
+        # 建立對應表
+        mapping = {
+            "國小區": "國小", "國中區": "國中", "高中區": "高中", 
+            "醫學區": "醫學", "法律區": "法律", "人工智慧區": "資工",
+            "心理與社會區": "心理", "生物與自然區": "生物"
         }
         
-        if menu in domain_configs:
-            cfg = domain_configs[menu]
-            sub_data = [c for c in data if cfg['key'] in str(c.get('category',''))]
-            ui_domain_page(sub_data, f"{cfg['title']}字根", cfg['color'], cfg['bg'])
-        elif menu == "管理區": 
-            ui_admin_page(data)
+        target_key = mapping.get(menu, "")
+        domain_data = [c for c in data if target_key in str(c.get('category',''))]
+        
+        # 設定不同色調
+        theme_colors = {"法律區": "#FFD700", "醫學區": "#C62828", "國小區": "#FB8C00"}
+        current_color = theme_colors.get(menu, "#1E88E5")
+        
+        ui_domain_page(domain_data, f"{menu}內容", current_color, "#F0F2F6")
+
+# 確保在檔案最下方呼叫
 if __name__ == "__main__":
     main()
