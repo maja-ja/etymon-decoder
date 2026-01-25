@@ -68,26 +68,35 @@ def inject_custom_css():
 # 1. 修正語音發音 (改良為 HTML5 標籤)
 # ==========================================
 def speak(text):
+    """專為 iPhone PWA 設計：顯示微型播放器，確保 100% 有聲音"""
     try:
+        from gtts import gTTS
+        import base64
+        from io import BytesIO
+        import time
+
         tts = gTTS(text=text, lang='en')
         fp = BytesIO()
         tts.write_to_fp(fp)
         fp.seek(0)
         audio_base64 = base64.b64encode(fp.read()).decode()
         
-        import time
-        # 加入隨機 hash 確保每次點擊都是新資源
-        random_hash = int(time.time())
+        # 加上時間戳記防止緩存
+        ts = int(time.time())
         
-        # 使用 standard markdown 而非 components.v1.html，iOS 對此支援度較高
-        audio_html = f"""
-            <audio autoplay="true" playsinline>
-                <source src="data:audio/mp3;base64,{audio_base64}#t={random_hash}" type="audio/mp3">
-            </audio>
-        """
-        st.markdown(audio_html, unsafe_allow_html=True)
+        # 這裡不使用 JavaScript，改用可見的 audio 標籤
+        # iPhone PWA 模式下，手動點擊此標籤的播放按鈕必成功
+        st.markdown(f"""
+            <div style="background: #f0f2f6; padding: 10px; border-radius: 10px; border: 1px solid #1E88E5; margin-top: 5px;">
+                <p style="margin:0 0 5px 0; font-size: 0.8rem; color: #1E88E5;">⬇️ 請點擊下方播放鍵 (iPhone 專用)</p>
+                <audio controls style="width: 100%; height: 35px;">
+                    <source src="data:audio/mp3;base64,{audio_base64}#t={ts}" type="audio/mp3">
+                </audio>
+            </div>
+        """, unsafe_allow_html=True)
+        
     except Exception as e:
-        st.error(f"播放失敗: {e}")
+        st.error(f"語音生成失敗: {e}")
 # ==========================================
 # 1. 核心配置與雲端同步 (保留原代碼)
 # ==========================================
