@@ -311,8 +311,21 @@ def main():
         st.cache_data.clear()
         st.rerun()
     _, total_words = get_stats(data)
-    st.sidebar.markdown(f'<div style="text-align: center; padding: 10px; background-color: #f0f2f6; border-radius: 10px;">資料庫總計<br><b>{total_words} Words</b></div>', unsafe_allow_html=True)
-
+    st.sidebar.markdown(f"""
+        <div style="
+            text-align: center; 
+            padding: 15px; 
+            background-color: var(--secondary-background-color); 
+            border: 1px solid rgba(128, 128, 128, 0.2);
+            border-radius: 12px; 
+            margin-top: 20px;
+        ">
+            <p style="margin: 0; font-size: 0.9em; color: var(--text-color); opacity: 0.8;">資料庫總計</p>
+            <p style="margin: 0; font-size: 1.8em; font-weight: bold; color: var(--text-color);">
+                {total_words} <span style="font-size: 0.5em;">Words</span>
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
     # 路由邏輯 (保留原功能)
     if menu == "字根區":
         cats = ["全部顯示"] + sorted(list(set(c['category'] for c in data)))
