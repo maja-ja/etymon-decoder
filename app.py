@@ -48,12 +48,13 @@ PENDING_FILE = 'pending_data.json'
 FEEDBACK_URL = st.secrets.get("feedback_sheet_url")
 @st.cache_data(ttl=600)
 def load_db():
-    # 建立 A-Z 的起始位置：A=0, B=11, C=22, ..., Z=275
     import string
+    # A=0, B=11, C=22 ... Z=275
     ALPHABET = list(string.ascii_uppercase)
     BLOCK_MAP = {letter: i * 11 for i, letter in enumerate(ALPHABET)}
     
     try:
+        # 讀取完整試算表
         raw_df = pd.read_csv(GSHEET_URL)
     except Exception as e:
         st.error(f"讀取失敗: {e}")
@@ -61,41 +62,66 @@ def load_db():
 
     structured_data = []
 
-    for block_name, start_idx in BLOCK_MAP.items():
+    for letter, start_idx in BLOCK_MAP.items():
         try:
-            if start_idx >= len(raw_df.columns): continue
+            # 檢查欄位是否足夠
+            if start_idx + 8 >= len(raw_df.columns):
+                continue
             
-            # 擷取 9 欄
+            # 擷取該區塊的 9 欄資料
             df_part = raw_df.iloc[:, start_idx:start_idx+9].copy()
-            df_part.columns = ['category', 'roots', 'meaning', 'word', 'breakdown', 'definition', 'phonetic', 'example', 'translation']
+            df_part.columns = [
+                'category', 'roots', 'meaning', 'word', 
+                'breakdown', 'definition', 'phonetic', 'example', 'translation'
+            ]
             
-            # 過濾標題與空單字
+            # 清理資料：移除標題行、處理空值
             df_part = df_part[df_part['category'].astype(str).str.lower() != 'category']
+            # 核心修正：必須確保 word 欄位不是空的，否則不計入
             df_part = df_part.dropna(subset=['word'])
-            if df_part.empty: continue
+            df_part = df_part[df_part['word'].astype(str).str.strip() != ""]
 
-            # 建立該字母的大區塊
-            block_node = {
-                "letter": block_name,
-                "sub_categories": []
-            }
+            if df_part.empty:
+                continue
 
+            sub_cats = []
+            # 按分類分組
             for cat_name, cat_group in df_part.groupby('category'):
                 root_groups = []
+                # 按字根分組
                 for (roots, meaning), group_df in cat_group.groupby(['roots', 'meaning']):
-                    vocabulary = [row.to_dict() for _, row in group_df.iterrows()]
-                    root_groups.append({
-                        "roots": [r.strip() for r in str(roots).split('/')],
-                        "meaning": str(meaning),
-                        "vocabulary": vocabulary
+                    vocabulary = []
+                    for _, row in group_df.iterrows():
+                        vocabulary.append({
+                            "word": str(row['word']).strip(),
+                            "breakdown": str(row['breakdown']).strip(),
+                            "definition": str(row['definition']).strip(),
+                            "phonetic": str(row['phonetic']).strip() if str(row['phonetic']) != "nan" else "",
+                            "example": str(row['example']).strip() if str(row['example']) != "nan" else "",
+                            "translation": str(row['translation']).strip() if str(row['translation']) != "nan" else ""
+                        })
+                    
+                    if vocabulary:
+                        root_groups.append({
+                            "roots": [r.strip() for r in str(roots).split('/')],
+                            "meaning": str(meaning).strip(),
+                            "vocabulary": vocabulary
+                        })
+                
+                if root_groups:
+                    sub_cats.append({
+                        "name": str(cat_name).strip(),
+                        "root_groups": root_groups
                     })
-                block_node["sub_categories"].append({
-                    "name": cat_name,
-                    "root_groups": root_groups
+            
+            if sub_cats:
+                structured_data.append({
+                    "letter": letter,
+                    "sub_categories": sub_cats
                 })
-            structured_data.append(block_node)
         except:
             continue
+            
     return structured_data
 def save_feedback_to_gsheet(word, feedback_type, comment):
     try:
