@@ -53,11 +53,12 @@ def inject_custom_css():
                 pointer-events: none !important;
             }
             
-            /* 4. 統一拆解框樣式 (金色風格) */
+            /* 4. 統一拆解框樣式 (自適應優化版) */
             .breakdown-container {
                 font-family: 'Courier New', monospace;
                 font-weight: bold;
-                background: #444; /* 深色背景確保金色字體突出 */
+                /* 改用 rgba，讓它在淺色模式下也有足夠對比度 */
+                background-color: rgba(30, 30, 30, 0.85); 
                 color: #FFD700;
                 padding: 4px 12px;
                 border-radius: 8px;
