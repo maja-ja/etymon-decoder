@@ -427,6 +427,80 @@ def ui_search_page_with_logic(data, selected_cat):
 
     # 滿足條件：執行過濾並顯示列表
     display_filtered_results(data, query, selected_cat)
+def ui_newbie_whiteboard_page():
+    """任務 3：獨立的教學區白板頁面"""
+    st.markdown('<h1 class="responsive-title">📖 教學區：如何解碼單字？</h1>', unsafe_allow_html=True)
+    
+    # 使用與 ui_newbie_whiteboard 類似的樣式但改為全頁面顯示
+    st.markdown("""
+    <div style="background-color: var(--secondary-background-color); padding: 30px; border-radius: 20px; border: 3px solid var(--primary-color);">
+        <h3 style="color:var(--primary-color);">1. 核心邏輯：拆解積木</h3>
+        <p class="responsive-text">英文單字不是死背字母，而是看懂組成。就像樂高一樣：</p>
+        <div style="text-align: center; background: rgba(128,128,128,0.1); padding: 20px; border-radius: 15px; margin: 15px 0;">
+            <span style="font-size: 1.5rem; font-weight: bold;">
+                <span style="color: #D32F2F;">Pre</span> (前) + 
+                <span style="color: #1E88E5;">dict</span> (說) = 
+                <span style="color: var(--text-color);">Predict</span> (預測)
+            </span>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # 插入單字構造圖 
+    
+
+    st.markdown("""
+        <h3 style="color:var(--primary-color); margin-top:30px;">2. 字根區快速上手指南</h3>
+        <div style="background: white; color: black; padding: 20px; border-radius: 10px; border: 1px solid #ddd;">
+            <ul class="responsive-text">
+                <li><b>Step 1：切換至「字根區」</b> - 點選左側導航選鈕。</li>
+                <li><b>Step 2：輸入關鍵字</b> - 在中央搜尋框輸入字根（如 <code>bio</code>）或含義（如 <code>生命</code>）。</li>
+                <li><b>Step 3：選取分類標籤</b> - <b>重要！</b>必須在左側側邊欄選擇一個領域（如：國中區、醫學區），列表才會出現。</li>
+            </ul>
+        </div>
+        <p style="margin-top:20px; text-align:center; font-style:italic; opacity:0.8;">
+            準備好了嗎？點選左側「字根區」開始解碼吧！
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+def display_filtered_results(data, query, selected_cat):
+    """執行字根區的過濾顯示"""
+    # 篩選特定類別的資料
+    relevant_cats = [c for c in data if c['category'] == selected_cat]
+    found_any = False
+    
+    for cat in relevant_cats:
+        for group in cat.get('root_groups', []):
+            # 檢查字根或含義是否符合搜尋
+            root_text = "/".join(group['roots']).lower()
+            meaning_text = group['meaning'].lower()
+            
+            # 同時過濾單字
+            matched_vocab = [
+                v for v in group.get('vocabulary', [])
+                if query in v['word'].lower() or query in root_text or query in meaning_text
+            ]
+            
+            if matched_vocab:
+                found_any = True
+                root_label = f"✨ {root_text.upper()} ({group['meaning']})"
+                with st.expander(root_label, expanded=True):
+                    for v in matched_vocab:
+                        st.markdown(f'<div class="responsive-word" style="font-weight:bold; color:#1E88E5;">{v["word"]}</div>', unsafe_allow_html=True)
+                        
+                        col_play, _ = st.columns([1, 3])
+                        with col_play:
+                            if st.button("播放發音", key=f"search_p_{v['word']}"):
+                                speak(v['word'])
+                        
+                        st.markdown(f"""
+                            <div class="breakdown-container responsive-breakdown">{v['breakdown']}</div>
+                            <div class="responsive-text"><b>定義：</b>{v['definition']}</div>
+                            <hr style="opacity:0.1;">
+                        """, unsafe_allow_html=True)
+    
+    if not found_any:
+        st.info(f"在「{selected_cat}」分類中找不到關於「{query}」的結果。")
 # ==========================================
 # 3. 主程序入口
 # ==========================================
