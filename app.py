@@ -14,57 +14,46 @@ from streamlit_gsheets import GSheetsConnection
 def inject_custom_css():
     st.markdown("""
         <style>
-            /* 1. 基礎文字與自適應縮放 */
+            /* 基礎縮放與唯讀設定 (保持不變) */
             html { font-size: 16px; }
-            
-            /* 手機端優化 (小於 600px) */
-            @media (max-width: 600px) {
-                .responsive-title { font-size: 8vw !important; }
-                .responsive-word { font-size: 10vw !important; }
-                .responsive-breakdown { font-size: 5vw !important; padding: 3px 8px !important; }
-                .responsive-text { font-size: 4.5vw !important; }
-                /* 手機端按鈕撐滿，方便點擊 */
-                .stButton button { width: 100% !important; margin-bottom: 5px; } 
+            .stSelectbox div[role="button"] input { caret-color: transparent !important; pointer-events: none !important; }
+
+            /* 優化 st.pills 的外觀：確保跟隨系統顏色且在手機上易於點擊 */
+            div[data-testid="stPills"] button {
+                border-radius: 20px !important;
+                padding: 5px 15px !important;
+                background-color: var(--secondary-background-color) !important;
+                color: var(--text-color) !important;
+                border: 1px solid rgba(128, 128, 128, 0.2) !important;
             }
             
-            /* 電腦端基礎尺寸 */
-            @media (min-width: 601px) {
-                .responsive-title { font-size: 2.5rem !important; }
-                .responsive-word { font-size: 2.2rem !important; }
-                .responsive-breakdown { font-size: 1.6rem !important; }
-                .responsive-text { font-size: 1.3rem !important; }
+            /* 選中狀態的顏色 (使用主題色) */
+            div[data-testid="stPills"] button[aria-selected="true"] {
+                background-color: var(--primary-color) !important;
+                color: white !important;
+                border-color: var(--primary-color) !important;
             }
 
-            /* 2. 統計框：預設跟隨系統顏色 (Dark/Light Mode) */
+            /* 構造拆解框：完全跟隨系統顏色 */
+            .breakdown-container {
+                font-family: 'Courier New', monospace;
+                font-weight: bold;
+                background-color: var(--secondary-background-color); 
+                color: var(--text-color); 
+                padding: 6px 15px;
+                border-radius: 8px;
+                border: 1px solid rgba(128, 128, 128, 0.3);
+                display: inline-block;
+            }
+            
+            /* 側邊欄統計框 */
             .stats-container {
                 text-align: center; 
                 padding: 15px; 
                 background-color: var(--secondary-background-color); 
                 border: 1px solid rgba(128, 128, 128, 0.2);
                 border-radius: 12px; 
-                margin-top: 20px;
                 color: var(--text-color);
-            }
-
-            /* 3. 禁止 Selectbox 輸入 (讓它只能選取) */
-            /* 這裡透過 CSS 讓輸入框不接受指標事件，點擊時會直接觸發下拉而非彈出鍵盤 */
-            .stSelectbox div[role="button"] input {
-                caret-color: transparent !important;
-                pointer-events: none !important;
-            }
-            
-            /* 4. 統一拆解框樣式 (自適應優化版) */
-            .breakdown-container {
-                font-family: 'Courier New', monospace;
-                font-weight: bold;
-                /* 改用 rgba，讓它在淺色模式下也有足夠對比度 */
-                background-color: rgba(30, 30, 30, 0.85); 
-                color: #FFD700;
-                padding: 4px 12px;
-                border-radius: 8px;
-                border: 1px solid #FFD700;
-                text-shadow: 1px 1px 2px black;
-                display: inline-block;
             }
         </style>
     """, unsafe_allow_html=True)
@@ -156,44 +145,60 @@ def get_stats(data):
 # 2. 通用與專業區域組件 (調整為自適應樣式)
 # ==========================================
 def ui_domain_page(domain_data, title, theme_color, bg_color):
-    st.markdown(f'<div class="responsive-title" style="font-weight:bold; margin-bottom:10px;">{title}</div>', unsafe_allow_html=True)
+    st.markdown(f'<h1 class="responsive-title">{title}</h1>', unsafe_allow_html=True)
     if not domain_data:
         st.info("目前資料庫中尚未建立相關分類。")
         return
 
+    # 1. 整理字根選單數據
     root_map = {}
     for cat in domain_data:
         for group in cat.get('root_groups', []):
             label = f"{'/'.join(group['roots'])} ({group['meaning']})"
             root_map[label] = group
     
-    # 使用 st.pills 代替 selectbox (更適合手機點選，且不能輸入)
     options = sorted(root_map.keys())
-    selected_label = st.pills("選擇要複習的字根", options, selection_mode="single", key=f"pills_{title}")
-    selected_label = st.selectbox("選擇要複習的字根", sorted(root_map.keys()), key=title)
+
+    # 2. 顯示按鈕式選單 (Pills)
+    # 刪除原本的 st.selectbox，僅保留此處
+    selected_label = st.pills(
+        "選擇要複習的字根", 
+        options, 
+        selection_mode="single", 
+        key=f"pills_{title}",
+        label_visibility="visible"
+    )
     
+    # 3. 如果有選取，顯示單字內容
     if selected_label:
         group = root_map[selected_label]
         for v in group.get('vocabulary', []):
             with st.container():
-                col_word, col_play, col_report = st.columns([3, 1, 1])
+                col_word, col_btns = st.columns([3, 2])
                 with col_word:
+                    # 顏色跟隨分類主題或系統
                     display_color = "#FFD700" if "法律" in title else theme_color
-                    st.markdown(f'<div class="responsive-word" style="font-weight: bold; color: {display_color};">{v["word"]}</div>', unsafe_allow_html=True)
-                with col_play:
-                    if st.button("播放", key=f"v_{v['word']}_{title}"): speak(v['word'])
-                with col_report:
-                    ui_feedback_component(v['word'])
+                    st.markdown(f'<div class="responsive-word" style="font-weight:bold; color:{display_color};">{v["word"]}</div>', unsafe_allow_html=True)
                 
+                with col_btns:
+                    # 語音與回報按鈕
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        if st.button("播放 🔊", key=f"play_{v['word']}_{title}"): speak(v['word'])
+                    with c2:
+                        ui_feedback_component(v['word'])
+                
+                # 構造拆解
                 st.markdown(f"""
-                    <div style="margin-bottom: 15px;">
-                        <span style="color: #888;">構造拆解：</span><br>
-                        <span class="breakdown-container responsive-breakdown">{v['breakdown']}</span>
-                        <div class="responsive-text" style="color: #DDD; margin-top: 10px;"><b>中文定義：</b> {v['definition']}</div>
+                    <div style="margin-top: 10px;">
+                        <span style="color: var(--text-color); opacity: 0.7;">構造拆解：</span><br>
+                        <div class="breakdown-container responsive-breakdown">{v['breakdown']}</div>
+                        <div class="responsive-text" style="color: var(--text-color); margin-top: 10px;">
+                            <b>中文定義：</b> {v['definition']}
+                        </div>
                     </div>
-                    <hr style="border-color: #444;">
+                    <hr style="border-color: rgba(128,128,128,0.2);">
                 """, unsafe_allow_html=True)
-
 def ui_feedback_component(word):
     with st.popover("錯誤回報"):
         st.write(f"回報單字：**{word}**")
