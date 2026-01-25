@@ -338,37 +338,39 @@ def ui_quiz_page(data):
             </div>
         """, unsafe_allow_html=True)
 def ui_search_page(data, selected_cat):
-    # --- 任務 1：標題與使用說明彈窗 ---
+    # --- 任務 1：標題與教學按鈕 ---
     col_title, col_help = st.columns([3, 1])
     with col_title:
         st.markdown('<h1 class="responsive-title">搜尋與瀏覽</h1>', unsafe_allow_html=True)
     with col_help:
-        # 在主介面右上角放一個顯眼的說明按鈕
-        with st.popover("📖 使用教學", use_container_width=True):
-            ui_newbie_whiteboard() # 呼叫任務 3 的白板
+        # 命名為教學區的按鈕
+        with st.popover("📖 教學區", use_container_width=True):
+            ui_newbie_whiteboard() 
 
-    # 篩選分類
-    relevant = data if selected_cat == "全部顯示" else [c for c in data if c['category'] == selected_cat]
-    
-    # --- 任務 2：純搜尋模式 (無按鈕) ---
+    # --- 任務 2：搜尋引導 ---
     st.markdown("### 🔍 快速搜尋")
     query = st.text_input(
-        "輸入字根或含義", 
-        placeholder="例如：act, bio, 動作, 生命...", 
+        "第一步：輸入字根或含義", 
+        placeholder="例如：act, bio...", 
         key="global_search_input"
     ).strip().lower()
     
+    # 判斷是否滿足顯示條件
     if not query:
-        # --- 任務 3：新手進入時看到的白板引導 ---
-        st.info("💡 提示：請在上方搜尋框輸入關鍵字，或使用側邊欄的「分類篩選」縮小範圍。")
-        ui_newbie_whiteboard()
+        st.info("💡 提示：請先在上方輸入框輸入關鍵字。")
+        ui_newbie_whiteboard() # 顯示新手白板
         return
 
-    # 執行搜尋邏輯
+    if selected_cat == "全部顯示":
+        st.warning("請從側邊欄「分類篩選」選擇一個特定的領域（如：國小基礎）以顯示列表。")
+        return
+
+    # --- 執行列表顯示 ---
+    relevant = [c for c in data if c['category'] == selected_cat]
     found_results = False
+    
     for cat in relevant:
         for group in cat.get('root_groups', []):
-            # 檢查字根或單字是否匹配
             matched_vocab = [
                 v for v in group['vocabulary'] 
                 if query in v['word'].lower() or any(query in r.lower() for r in group['roots'])
@@ -377,24 +379,10 @@ def ui_search_page(data, selected_cat):
             if matched_vocab:
                 found_results = True
                 root_label = f"{'/'.join(group['roots'])} ({group['meaning']})"
-                with st.expander(f"✨ {cat['category']} | {root_label}", expanded=True):
+                with st.expander(f"✨ {root_label}", expanded=True):
                     for v in matched_vocab:
-                        st.markdown(f'<div class="responsive-word" style="color:var(--primary-color); font-weight:bold;">{v["word"]}</div>', unsafe_allow_html=True)
-                        
-                        c1, c2, _ = st.columns([1, 1, 2])
-                        with c1:
-                            if st.button("播放", key=f"p_{v['word']}_{cat['category']}"): speak(v['word'])
-                        with c2:
-                            ui_feedback_component(v['word'])
-                        
-                        st.markdown(f"""
-                            <div class="breakdown-container responsive-breakdown">{v['breakdown']}</div>
-                            <div class="responsive-text"><b>中文定義：</b> {v['definition']}</div>
-                            <hr style="opacity:0.1; margin:15px 0;">
-                        """, unsafe_allow_html=True)
-    
-    if not found_results:
-        st.warning("找不到匹配的字根或單字，請嘗試換個關鍵字。")
+                        st.markdown(f'**{v["word"]}** `{v["breakdown"]}`: {v["definition"]}')
+                        if st.button("播放", key=f"p_{v['word']}"): speak(v['word'])
 def ui_admin_page(data):
     st.title("管制區")
     correct_password = st.secrets.get("admin_password", "8787")
@@ -422,79 +410,66 @@ def ui_admin_page(data):
     if st.sidebar.button("登出管理區"):
         st.session_state.admin_auth = False
         st.rerun()
+def ui_search_page_with_logic(data, selected_cat):
+    st.markdown('<h1 class="responsive-title">搜尋與瀏覽</h1>', unsafe_allow_html=True)
+    
+    # 搜尋框
+    query = st.text_input("輸入字根或含義開始解碼", placeholder="例如：bio, act, 生命...", key="root_search_bar").strip().lower()
 
+    # 邏輯門檻判斷
+    if not query:
+        st.info("🔍 請在上方搜尋框輸入您想查詢的字根或中文意思。")
+        return
+        
+    if selected_cat == "全部顯示":
+        st.warning("⚠️ 請從左側選單的『分類篩選』選擇一個特定的領域（例如：國小基礎）以展開列表。")
+        return
+
+    # 滿足條件：執行過濾並顯示列表
+    display_filtered_results(data, query, selected_cat)
 # ==========================================
 # 3. 主程序入口
 # ==========================================
 def main():
     st.set_page_config(page_title="Etymon Decoder", layout="wide")
-    inject_custom_css() 
+    inject_custom_css()
     data = load_db()
     
-    # 1. 側邊欄：導航菜單 (決定 menu 變數)
+    # --- 側邊欄：導航菜單 ---
     st.sidebar.title("Etymon Decoder")
+    
+    # 將「教學區」放在導航的第一位，使其像高中區、醫學區一樣是個切換按鈕
     menu = st.sidebar.radio(
         "導航", 
-        ["字根區", "學習區", "國小區", "國中區", "高中區", "醫學區", "法律區", "人工智慧區", "心理與社會區", "生物與自然區", "管理區"], 
-        key="nav_menu" # 確保 key 固定
+        ["教學區", "字根區", "學習區", "國小區", "國中區", "高中區", "醫學區", "法律區", "人工智慧區", "心理與社會區", "生物與自然區", "管理區"],
+        key="main_nav"
     )
     
     st.sidebar.divider()
 
-    # 任務 1：側欄說明按鈕 (截圖 6.09.18 左側)
-    with st.sidebar.expander("📖 使用說明 (新手必看)", expanded=False):
-        st.info("歡迎使用！請先選擇導航頻道，再配合下方分類篩選開始學習。")
-        # 這裡可以放簡短版說明
+    # 任務 2：分類篩選 (這決定了字根區是否顯示列表)
+    st.sidebar.markdown("### 分類篩選")
+    cats = ["全部顯示"] + sorted(list(set(c['category'] for c in data)))
+    selected_cat = st.sidebar.radio("選擇領域", cats, key="filter_cat")
+    st.sidebar.caption("💡 提示：在『字根區』時，需選取特定領域才會顯示結果。")
 
-    # 強制刷新按鈕
-    if st.sidebar.button("強制刷新雲端數據", use_container_width=True): 
-        st.cache_data.clear()
-        st.rerun()
-
-    # 資料庫統計
-    _, total_words = get_stats(data)
-    st.sidebar.markdown(f"""
-        <div class="stats-container">
-            <p style="margin: 0; font-size: 0.8em; opacity: 0.7;">資料庫總計</p>
-            <p style="margin: 0; font-size: 1.5em; font-weight: bold;">{total_words} Words</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-    # 2. 分類篩選 (僅在字根區或其他分區時顯示)
-    st.sidebar.subheader("分類篩選")
-    cats = ["全部顯示", "國小基礎", "專業心理", "專業法律", "專業生物", "專業資工", "專業醫學", "進階高中", "高中必備"]
-    # 根據實際 data 取得動態分類或使用固定分類
-    selected_cat = st.sidebar.radio("選擇領域", cats, key="domain_filter")
-    st.sidebar.caption("💡 技巧：往下選取不同領域以篩選單字。")
-
-    # --- 3. 關鍵路由邏輯：確保頁面內容隨 menu 切換 ---
-    st.divider() # 裝飾用
-
-    if menu == "字根區":
-        # 任務 2：呼叫搜尋介面
-        ui_search_page(data, selected_cat)
+    # --- 主內容路由邏輯 ---
+    if menu == "教學區":
+        # 任務 3：獨立的教學白板頁面
+        ui_newbie_whiteboard_page() 
         
-    elif menu == "學習區": 
+    elif menu == "字根區":
+        # 任務 2：只有在搜尋 + 分類標籤同時存在時才顯示列表
+        ui_search_page_with_logic(data, selected_cat)
+        
+    elif menu == "學習區":
         ui_quiz_page(data)
         
     else:
-        # 其他分區：根據選中的 menu 篩選數據
-        # 建立對應表
-        mapping = {
-            "國小區": "國小", "國中區": "國中", "高中區": "高中", 
-            "醫學區": "醫學", "法律區": "法律", "人工智慧區": "資工",
-            "心理與社會區": "心理", "生物與自然區": "生物"
-        }
-        
-        target_key = mapping.get(menu, "")
-        domain_data = [c for c in data if target_key in str(c.get('category',''))]
-        
-        # 設定不同色調
-        theme_colors = {"法律區": "#FFD700", "醫學區": "#C62828", "國小區": "#FB8C00"}
-        current_color = theme_colors.get(menu, "#1E88E5")
-        
-        ui_domain_page(domain_data, f"{menu}內容", current_color, "#F0F2F6")
-
+        # 其他分區 (國小、高中、醫學等) 保持原有的按鈕式列表顯示
+        target_cat = menu.replace("區", "")
+        domain_data = [c for c in data if target_cat in str(c.get('category',''))]
+        ui_domain_page(domain_data, f"{menu}字根庫", "#1E88E5", "#F0F2F6")
 # 確保在檔案最下方呼叫
 if __name__ == "__main__":
     main()
