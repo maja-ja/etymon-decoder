@@ -67,34 +67,51 @@ def load_db():
 # ==========================================
 # 2. UI 組件 (已完全移除喇叭/語音邏輯)
 # ==========================================
-
-def render_word_card(v, theme_color="#1E88E5"):
+def render_word_card(v, title="General", theme_color="#1E88E5"):
     """
     統一的單字卡渲染函式
     v: 單字資料字典
-    theme_color: 卡片標題顏色
+    title: 來源頁面標題 (用於判斷顏色與 Key)
+    theme_color: 預設卡片標題顏色
     """
     with st.container(border=True):
-        col_w, col_p = st.columns([4, 1])
+        col_w, col_p, col_f = st.columns([3, 0.8, 0.8]) # 預留回報空間
+        
         with col_w:
-            st.markdown(f'<div style="font-size: 1.5em; font-weight: bold; color: {theme_color};">{v["word"]}</div>', unsafe_allow_html=True)
+            # 根據標題判斷顏色 (法律區為金色)
+            display_color = "#FFD700" if "法律" in title else theme_color
+            st.markdown(f'<div style="font-size: 2.2em; font-weight: bold; color: {display_color}; line-height:1.2;">{v["word"]}</div>', unsafe_allow_html=True)
+            
             if v.get('phonetic') and str(v['phonetic']) != "nan": 
-                st.caption(f"/{v['phonetic']}/")
+                st.caption(f"/{v['phonetic'].strip('/')}/")
+                
         with col_p:
-            # 使用隨機 key 避免在同頁面出現重複 ID 導致按鈕失效
-            btn_key = f"v_{v['word']}_{title}_{random.randint(0, 100000)}"
-            if st.button("🔊", key=btn_key): 
+            # 修正後的唯一 Key 生成
+            btn_key = f"spk_{v['word']}_{title}_{random.randint(0, 100000)}"
+            if st.button("🔊", key=btn_key, help="播放發音"): 
                 speak(v['word'])
         
-        st.markdown(f"**拆解：** `{v['breakdown']}`")
-        st.markdown(f"**定義：** {v['definition']}")
+        with col_f:
+            # 呼叫回報組件
+            if 'ui_feedback_component' in globals():
+                ui_feedback_component(v['word'])
+        
+        # 構造拆解與定義
+        st.markdown(f"""
+            <div style="margin-top: 10px;">
+                <span style="color: #888;">構造拆解：</span>
+                <code style="font-size: 1.2em; color: #FFD700; background: #333; padding: 2px 8px; border-radius: 5px;">{v['breakdown']}</code>
+            </div>
+            <div style="margin-top: 8px; font-size: 1.1em;">
+                <b>定義：</b> {v['definition']}
+            </div>
+        """, unsafe_allow_html=True)
         
         if v.get('example') and str(v['example']) != "nan":
             with st.expander("查看例句"):
                 st.write(v['example'])
                 if v.get('translation') and str(v['translation']) != "nan":
                     st.caption(f"({v['translation']})")
-
 def ui_quiz_page(data):
     st.title("學習區 (Flashcards)")
     pool = []
@@ -133,7 +150,26 @@ def ui_quiz_page(data):
         st.markdown("---")
         st.success(f"**拆解：** {q['breakdown']}")
         st.write(f"**解釋：** {q['definition']}")
+def ui_domain_page(domain_data, title, theme_color, bg_color):
+    st.title(title)
+    if not domain_data:
+        st.info("目前資料庫中尚未建立相關分類。")
+        return
 
+    # 提取字根
+    root_map = {}
+    for cat in domain_data:
+        for group in cat.get('root_groups', []):
+            label = f"{'/'.join(group['roots'])} ({group['meaning']})"
+            if label not in root_map: root_map[label] = group
+    
+    selected_label = st.selectbox("選擇要複習的字根", sorted(root_map.keys()), key=f"sel_{title}")
+    
+    if selected_label:
+        group = root_map[selected_label]
+        for v in group.get('vocabulary', []):
+            # 直接呼叫統一的渲染函式，傳入當前的 title
+            render_word_card(v, title=title, theme_color=theme_color)
 # ==========================================
 # 3. 主程序入口
 # ==========================================
