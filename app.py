@@ -413,20 +413,42 @@ def ui_admin_page(data):
 def ui_search_page_with_logic(data, selected_cat):
     st.markdown('<h1 class="responsive-title">搜尋與瀏覽</h1>', unsafe_allow_html=True)
     
-    # 搜尋框
-    query = st.text_input("輸入字根或含義開始解碼", placeholder="例如：bio, act, 生命...", key="root_search_bar").strip().lower()
+    # 搜尋框：維持在列表上方
+    query = st.text_input("搜尋單字或字根...", placeholder="例如：act, bio, 動作...", key="root_search_bar").strip().lower()
 
-    # 邏輯門檻判斷
-    if not query:
-        st.info("🔍 請在上方搜尋框輸入您想查詢的字根或中文意思。")
-        return
-        
+    # 門檻判斷：必須選取分類
     if selected_cat == "全部顯示":
-        st.warning("⚠️ 請從左側選單的『分類篩選』選擇一個特定的領域（例如：國小基礎）以展開列表。")
+        st.warning("⚠️ 請從左側選單的『分類篩選』選擇一個特定的領域（例如：國小基礎）以展開完整列表。")
+        ui_newbie_whiteboard() # 提示新手教學
         return
 
-    # 滿足條件：執行過濾並顯示列表
-    display_filtered_results(data, query, selected_cat)
+    # 滿足條件：執行過濾並「全部列出」
+    # 如果 query 為空，matched_vocab 就會包含該分類下的所有內容
+    relevant_cats = [c for c in data if c['category'] == selected_cat]
+    found_any = False
+    
+    for cat in relevant_cats:
+        for group in cat.get('root_groups', []):
+            root_text = "/".join(group['roots']).lower()
+            meaning_text = group['meaning'].lower()
+            
+            # 過濾邏輯：如果沒有輸入搜尋，則顯示所有單字
+            matched_vocab = [
+                v for v in group.get('vocabulary', [])
+                if not query or (query in v['word'].lower() or query in root_text or query in meaning_text)
+            ]
+            
+            if matched_vocab:
+                found_any = True
+                root_label = f"{root_text} ({group['meaning']})"
+                with st.expander(root_label, expanded=False): # 預設折疊，搜尋時可視情況展開
+                    for v in matched_vocab:
+                        st.markdown(f'**{v["word"]}** `{v["breakdown"]}`: {v["definition"]}')
+                        if st.button("播放", key=f"search_p_{v['word']}_{root_text}"):
+                            speak(v['word'])
+    
+    if not found_any and query:
+        st.info(f"在「{selected_cat}」分類中找不到與「{query}」相關的結果。")
 def ui_newbie_whiteboard_page():
     """任務 3：獨立的教學區白板頁面"""
     st.markdown('<h1 class="responsive-title">📖 教學區：如何解碼單字？</h1>', unsafe_allow_html=True)
@@ -501,6 +523,9 @@ def display_filtered_results(data, query, selected_cat):
     
     if not found_any:
         st.info(f"在「{selected_cat}」分類中找不到關於「{query}」的結果。")
+def ui_newbie_whiteboard_page():
+    st.markdown('<h1 class="responsive-title">📖 教學區</h1>', unsafe_allow_html=True)
+    ui_newbie_whiteboard() # 直接呼叫你原本寫好的白板組件
 # ==========================================
 # 3. 主程序入口
 # ==========================================
@@ -509,10 +534,9 @@ def main():
     inject_custom_css()
     data = load_db()
     
-    # --- 側邊欄：導航菜單 ---
     st.sidebar.title("Etymon Decoder")
     
-    # 將「教學區」放在導航的第一位，使其像高中區、醫學區一樣是個切換按鈕
+    # 任務：教學區在字根區之上
     menu = st.sidebar.radio(
         "導航", 
         ["教學區", "字根區", "學習區", "國小區", "國中區", "高中區", "醫學區", "法律區", "人工智慧區", "心理與社會區", "生物與自然區", "管理區"],
@@ -520,29 +544,22 @@ def main():
     )
     
     st.sidebar.divider()
-
-    # 任務 2：分類篩選 (這決定了字根區是否顯示列表)
-    st.sidebar.markdown("### 分類篩選")
+    
+    # 分類篩選
     cats = ["全部顯示"] + sorted(list(set(c['category'] for c in data)))
     selected_cat = st.sidebar.radio("選擇領域", cats, key="filter_cat")
-    st.sidebar.caption("💡 提示：在『字根區』時，需選取特定領域才會顯示結果。")
 
-    # --- 主內容路由邏輯 ---
     if menu == "教學區":
-        # 任務 3：獨立的教學白板頁面
-        ui_newbie_whiteboard_page() 
-        
+        ui_newbie_whiteboard_page()
     elif menu == "字根區":
-        # 任務 2：只有在搜尋 + 分類標籤同時存在時才顯示列表
+        # 顯示該分類下的「全部列表」並支援「搜尋」
         ui_search_page_with_logic(data, selected_cat)
-        
     elif menu == "學習區":
         ui_quiz_page(data)
-        
     else:
-        # 其他分區 (國小、高中、醫學等) 保持原有的按鈕式列表顯示
+        # 其他學術分區：維持目前的按鈕牆或列表顯示
         target_cat = menu.replace("區", "")
-        domain_data = [c for c in data if target_cat in str(c.get('category',''))]
+        domain_data = [c for c in data if target_cat in c['category']]
         ui_domain_page(domain_data, f"{menu}字根庫", "#1E88E5", "#F0F2F6")
 # 確保在檔案最下方呼叫
 if __name__ == "__main__":
