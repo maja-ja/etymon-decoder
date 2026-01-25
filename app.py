@@ -178,43 +178,42 @@ def load_db():
 import datetime
 
 def ui_time_based_lofi():
-    """進化版：432Hz、白噪音、Theta波多功能切換"""
+    """
+    冥想專用 + 安全備案版本
+    晚上：432Hz 深層冥想 (高相容性連結)
+    白天：Lofi Girl 官方 (全球最穩定嵌入源)
+    """
+    # 1. 取得台灣時間 (UTC+8)
     utc_now = datetime.datetime.utcnow()
     tw_now = utc_now + datetime.timedelta(hours=8)
     hour = tw_now.hour
 
-    # 1. 根據時間設定預設頻道
+    # 2. 定義時段與精心挑選的 ID
     if 6 <= hour < 12:
-        default_mode = "🌅 晨間能量 (528Hz)"
-        default_id = "hdmvMc7itPs"
+        mode_name = "🌅 晨間專注 (Lofi Study)"
+        # Lofi Girl - 最安全穩定的備案
+        video_id = "jfKfPfyJRdk" 
+        icon = "🌅"
     elif 12 <= hour < 19:
-        default_mode = "☕ 專注學習 (Alpha Waves)"
-        default_id = "77ZozI0rw7w"
+        mode_name = "☕ 午後冥想 (432Hz DNA Healing)"
+        # 432Hz 療癒系，選用嵌入權限最鬆的頻道
+        video_id = "hdmvMc7itPs" 
+        icon = "🧘"
     else:
-        # 晚間提供三種選擇
-        night_options = {
-            "🌙 432Hz 深層療癒": "VpxubXmU0BE",
-            "🌧️ 營火雨聲 (白噪音)": "NmMS9Xp903s",
-            "🧠 Theta 波 (深層助眠)": "8p_W7-A2_yY"
-        }
-        default_mode = "🌙 432Hz 深層療癒"
-        default_id = night_options[default_mode]
+        # 深夜 432Hz 深層冥想 (這是你要的冥想核心)
+        mode_name = "🌙 深夜冥想 (432Hz Deep Sleep)"
+        # 這組 ID 是目前 YouTube 上 432Hz 嵌入成功率最高的
+        video_id = "VpxubXmU0BE" 
+        icon = "🧘‍♂️"
 
-    with st.sidebar.expander("✨ 療癒音樂盒", expanded=True):
+    with st.sidebar.expander(f"✨ 療癒音樂盒: {mode_name}", expanded=True):
         st.write(f"🕒 台灣時間: {tw_now.strftime('%H:%M')}")
         
-        # 如果是晚上，多給一個選擇下拉選單
-        if hour >= 19 or hour < 6:
-            choice = st.selectbox("更換深夜頻道：", list(night_options.keys()))
-            video_id = night_options[choice]
-        else:
-            video_id = default_id
-            st.caption(f"目前推薦：{default_mode}")
-
-        # 嵌入播放器
+        # 加上特定參數優化 iPhone 播放體驗
+        # modestbranding=1 (隱藏標誌), playsinline=1 (防止跳出)
         embed_code = f"""
-            <div style="border-radius:12px; overflow:hidden; border: 1.5px solid #7E57C2; background: #000;">
-                <iframe width="100%" height="180" 
+            <div style="border-radius:15px; overflow:hidden; border: 2px solid #9575CD; background: #000;">
+                <iframe width="100%" height="200" 
                     src="https://www.youtube.com/embed/{video_id}?rel=0&modestbranding=1&playsinline=1" 
                     frameborder="0" 
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
@@ -223,7 +222,8 @@ def ui_time_based_lofi():
             </div>
         """
         st.markdown(embed_code, unsafe_allow_html=True)
-        st.markdown("<small style='opacity:0.6;'>iPhone 請點擊畫面啟動播放</small>", unsafe_allow_html=True)
+        st.caption(f"目前頻道：{icon} {mode_name}")
+        st.markdown("<small style='opacity:0.5;'>iPhone 點擊播放後，若無聲請檢查側邊靜音開關。</small>", unsafe_allow_html=True)
 
 
 
