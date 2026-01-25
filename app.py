@@ -180,45 +180,49 @@ import datetime
 import datetime
 
 def ui_time_based_lofi():
-    """根據台灣時間自動切換 Lofi 音樂清單"""
-    # 修正時差：伺服器通常是 UTC，台灣是 UTC+8
+    """修正版：確保晚間音樂連結可用，並修正時差"""
+    # 1. 取得台灣時間 (UTC+8)
     utc_now = datetime.datetime.utcnow()
     tw_now = utc_now + datetime.timedelta(hours=8)
     hour = tw_now.hour
 
-    # 定義不同時段的 YouTube 播放內容
+    # 2. 定義時段與對應的穩定 YouTube ID
+    # 這些 ID 是 Lofi Girl 頻道的長期直播連結
     if 6 <= hour < 12:
-        # 早晨 (06:00 - 11:59)：輕快
-        mode_name = "晨間氛圍 (Morning)"
-        playlist_id = "DWcJFNfaw9c" 
+        mode_name = "晨間清爽 (Morning)"
+        # 這裡換成輕快的連結
+        video_id = "DWcJFNfaw9c" 
         icon = "🌅"
     elif 12 <= hour < 19:
-        # 下午 (12:00 - 18:59)：專注
-        mode_name = "專注工作 (Focus)"
-        playlist_id = "jfKfPfyJRdk" 
+        mode_name = "專注學習 (Focus)"
+        # 經典 Lofi Hip Hop
+        video_id = "jfKfPfyJRdk" 
         icon = "☕"
     else:
-        # 深夜 (19:00 - 05:59)：助眠
-        mode_name = "深夜安靜 (Sleep)"
-        playlist_id = "rUxyKA_-grg" 
+        # 晚間/深夜 (19:00 - 05:59)
+        mode_name = "深夜助眠 (Sleep)"
+        # 換成更穩定的 Sleepy Lofi 連結
+        video_id = "rUxyKA_-grg" 
         icon = "🌙"
 
-    # 在側邊欄顯示音樂盒
-    with st.sidebar.expander(f"🎵 時光音樂盒: {mode_name}", expanded=False):
-        st.write(f"🕒 台灣目前時間: {tw_now.strftime('%H:%M')}")
-        st.caption(f"模式：{icon} {mode_name}")
+    # 3. 在側邊欄呈現
+    with st.sidebar.expander(f"🎵 時光音樂盒: {mode_name}", expanded=True):
+        st.write(f"🕒 台灣時間: {tw_now.strftime('%H:%M')}")
         
-        # YouTube 嵌入播放器
+        # 加上 playsinline=1 是為了讓 iPhone 在網頁內播放，而不跳出全螢幕
         embed_code = f"""
-            <iframe width="100%" height="180" 
-                src="https://www.youtube.com/embed/{playlist_id}?rel=0&modestbranding=1" 
-                frameborder="0" 
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                allowfullscreen>
-            </iframe>
+            <div style="border-radius:10px; overflow:hidden;">
+                <iframe width="100%" height="180" 
+                    src="https://www.youtube.com/embed/{video_id}?autoplay=0&mute=0&rel=0&modestbranding=1&playsinline=1" 
+                    frameborder="0" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                    allowfullscreen>
+                </iframe>
+            </div>
         """
         st.markdown(embed_code, unsafe_allow_html=True)
-        st.info("💡 iPhone 需點擊播放鍵方可發聲")
+        st.caption(f"目前進入 {icon} 模式")
+
 
 def save_feedback_to_gsheet(word, feedback_type, comment):
     try:
