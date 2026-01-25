@@ -177,32 +177,38 @@ def load_db():
     return structured_data
 import datetime
 
+import datetime
+
 def ui_time_based_lofi():
-    """根據目前時間自動切換 Lofi 音樂清單"""
-    now = datetime.datetime.now()
-    hour = now.hour
+    """根據台灣時間自動切換 Lofi 音樂清單"""
+    # 修正時差：伺服器通常是 UTC，台灣是 UTC+8
+    utc_now = datetime.datetime.utcnow()
+    tw_now = utc_now + datetime.timedelta(hours=8)
+    hour = tw_now.hour
 
-    # 定義不同時段的 YouTube 播放清單 ID (這些是知名的 24/7 Lofi 頻道)
+    # 定義不同時段的 YouTube 播放內容
     if 6 <= hour < 12:
-        # 早晨：清爽輕快
-        mode_name = "Morning Breeze"
-        playlist_id = "DWcJFNfaw9c" # Lofi Girl - morning
-        bg_color = "#FFF9C4"
+        # 早晨 (06:00 - 11:59)：輕快
+        mode_name = "晨間氛圍 (Morning)"
+        playlist_id = "DWcJFNfaw9c" 
+        icon = "🌅"
     elif 12 <= hour < 19:
-        # 下午：專注工作
-        mode_name = "Deep Focus Lofi"
-        playlist_id = "jfKfPfyJRdk" # Lofi Girl - hip hop radio
-        bg_color = "#E3F2FD"
+        # 下午 (12:00 - 18:59)：專注
+        mode_name = "專注工作 (Focus)"
+        playlist_id = "jfKfPfyJRdk" 
+        icon = "☕"
     else:
-        # 晚上/深夜：安靜助眠
-        mode_name = "Sleepy Night"
-        playlist_id = "rUxyKA_-grg" # Lofi Girl - sleepy beats
-        bg_color = "#1A237E"
+        # 深夜 (19:00 - 05:59)：助眠
+        mode_name = "深夜安靜 (Sleep)"
+        playlist_id = "rUxyKA_-grg" 
+        icon = "🌙"
 
+    # 在側邊欄顯示音樂盒
     with st.sidebar.expander(f"🎵 時光音樂盒: {mode_name}", expanded=False):
-        st.caption(f"目前時間: {hour}:00 ({mode_name} 模式)")
+        st.write(f"🕒 台灣目前時間: {tw_now.strftime('%H:%M')}")
+        st.caption(f"模式：{icon} {mode_name}")
         
-        # 使用 YouTube 嵌入語法，這是 iPhone 最相容的方案
+        # YouTube 嵌入播放器
         embed_code = f"""
             <iframe width="100%" height="180" 
                 src="https://www.youtube.com/embed/{playlist_id}?rel=0&modestbranding=1" 
@@ -212,8 +218,7 @@ def ui_time_based_lofi():
             </iframe>
         """
         st.markdown(embed_code, unsafe_allow_html=True)
-        st.info("💡 提示：點擊上方播放按鈕，iPhone 建議先點擊音樂再開始學習。")
-
+        st.info("💡 iPhone 需點擊播放鍵方可發聲")
 
 def save_feedback_to_gsheet(word, feedback_type, comment):
     try:
