@@ -14,7 +14,6 @@ from streamlit_gsheets import GSheetsConnection
 # ==========================================
 def speak(text):
     try:
-        # 生成語音二進位檔案
         tts = gTTS(text=text, lang='en')
         fp = BytesIO()
         tts.write_to_fp(fp)
@@ -22,26 +21,27 @@ def speak(text):
         audio_bytes = fp.read()
         audio_base64 = base64.b64encode(audio_bytes).decode()
         
-        # 建立一個唯一的 ID，確保每次點擊都是獨立觸發
+        # 建立唯一 ID
         unique_id = f"audio_{int(time.time() * 1000)}"
         
-        # 使用 HTML5 + JavaScript 強制播放
-        # 包含了一個隱藏的 audio 標籤和自動執行的 script
+        # 1. 核心播放腳本 (HTML5)
         audio_html = f"""
-            <audio id="{unique_id}">
+            <audio id="{unique_id}" autoplay>
                 <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
             </audio>
             <script>
                 var audio = document.getElementById("{unique_id}");
-                audio.play().catch(function(error) {{
-                    console.log("播放被瀏覽器阻擋:", error);
-                }});
+                audio.play().catch(function(e) {{ console.log("Autoplay blocked"); }});
             </script>
         """
-        # 渲染組件
         st.components.v1.html(audio_html, height=0)
+        
+        # 2. 側邊欄備份播放 (隱形，但能幫助瀏覽器識別音訊來源)
+        with st.sidebar:
+            st.audio(audio_bytes, format="audio/mp3")
+            
     except Exception as e:
-        st.error(f"語音生成出錯: {e}")
+        st.error(f"語音功能暫時不可用: {e}")
 # ==========================================
 # 1. 核心配置與雲端同步
 # ==========================================
