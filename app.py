@@ -197,98 +197,57 @@ def ui_feedback_component(word):
                 st.success("感謝回報！管理員將會盡快修正。")
 def ui_quiz_page(data):
     st.title("學習區 (Flashcards)")
-    cat_options_map = {"全部練習": "全部練習"}
-    cat_options_list = ["全部練習"]
-    for c in data:
-        w_count = sum(len(g['vocabulary']) for g in c['root_groups'])
-        display_name = f"{c['category']} ({w_count} 字)"
-        cat_options_list.append(display_name)
-        cat_options_map[display_name] = c['category']
+    
+    # --- 核心修正：將嵌套資料拉平 ---
+    pool = []
+    for block in data:
+        for sub in block.get('sub_categories', []):
+            for group in sub.get('root_groups', []):
+                for v in group.get('vocabulary', []):
+                    # 加入所屬分類資訊以便顯示
+                    item = v.copy()
+                    item['cat'] = sub['name']
+                    pool.append(item)
+    
+    if not pool:
+        st.warning("目前資料庫中沒有單字可供練習。")
+        return
 
-    selected_raw = st.selectbox("選擇練習範圍", sorted(cat_options_list))
-    selected_cat = cat_options_map[selected_raw]
-
-    if st.session_state.get('last_quiz_cat') != selected_cat:
-        st.session_state.last_quiz_cat = selected_cat
-        if 'flash_q' in st.session_state: del st.session_state.flash_q
-        st.rerun()
-
+    # 初始化測驗狀態
     if 'flash_q' not in st.session_state:
-        if selected_cat == "全部練習":
-            pool = [{**v, "cat": c['category']} for c in data for g in c['root_groups'] for v in g['vocabulary']]
-        else:
-            pool = [{**v, "cat": c['category']} for c in data if c['category'] == selected_cat for g in c['root_groups'] for v in g['vocabulary']]
-        
-        if not pool: st.warning("此範圍無資料"); return
         st.session_state.flash_q = random.choice(pool)
         st.session_state.flipped = False
-        st.session_state.voiced = False 
 
     q = st.session_state.flash_q
     
-    # 單字卡片正面
+    # 顯示卡片正面
+    st.info(f"📍 分類範疇：{q['cat']}")
     st.markdown(f"""
-        <div style="text-align: center; padding: 50px; border: 3px solid #eee; border-radius: 25px; background: #fdfdfd; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <p style="color: #999; font-weight: bold;">[ {q['cat']} ]</p>
-            <h1 style="font-size: 4.5em; margin: 0; color: #1E88E5;">{q['word']}</h1>
+        <div style="text-align: center; padding: 40px; border: 2px solid #1E88E5; border-radius: 20px; background: #f9f9f9;">
+            <h1 style="font-size: 4em; color: #1E88E5; margin: 0;">{q['word']}</h1>
         </div>
     """, unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col1:
-        if st.button("查看答案", use_container_width=True): 
-            st.session_state.flipped = True
-    with col2:
-        if st.button("播放發音", use_container_width=True):
-            speak(q['word'])
-    with col3:
-        if st.button("➡️ 下一題", use_container_width=True): 
-            if 'flash_q' in st.session_state: del st.session_state.flash_q
-            st.rerun()
+    # 按鈕列
+    c1, c2, c3 = st.columns(3)
+    if c1.button("👀 查看答案", use_container_width=True):
+        st.session_state.flipped = True
+    if c2.button("🔊 播放發音", use_container_width=True):
+        speak(q['word'])
+    if c3.button("➡️ 下一題", use_container_width=True):
+        st.session_state.flash_q = random.choice(pool)
+        st.session_state.flipped = False
+        st.rerun()
 
-    # 答案翻開後的邏輯
+    # 顯示背面答案
     if st.session_state.get('flipped'):
-        if not st.session_state.get('voiced'):
-            speak(q['word'])
-            st.session_state.voiced = True
-            
-        is_legal = "法律" in q['cat']
-        bg_color = "#1A1A1A" if is_legal else "#E3F2FD"
-        label_color = "#FFD700" if is_legal else "#1E88E5"
-        text_color = "#FFFFFF" if is_legal else "#000000"
-        breakdown_color = "#FFD700" if is_legal else "#D32F2F"
-
-        # 處理音標：移除多餘斜線
-        p_val = str(q.get('phonetic', '')).strip().replace('/', '')
-        phonetic_html = f"<div style='color:{label_color}; font-size:1.2em; margin-bottom:5px;'>/{p_val}/</div>" if p_val and p_val != "nan" else ""
-        
-        # 處理例句與翻譯：直接組合成字串，不使用多行引號以減少錯誤
-        e_val = str(q.get('example', '')).strip()
-        t_val = str(q.get('translation', '')).strip()
-        
-        example_html = ""
-        if e_val and e_val != "nan":
-            # 這裡改用最簡單的字串相加，避免縮排問題
-            example_html += f"<hr style='border-color:#555; margin:15px 0;'>"
-            example_html += f"<div style='font-style:italic; color:#666; font-size:1.1em;'>{e_val}</div>"
-            if t_val and t_val != "nan":
-                example_html += f"<div style='color:#666; font-size:0.95em; margin-top:5px;'>({t_val})</div>"
-
-        # 最終渲染：確保 full_html 變數完全左對齊，沒有任何空格縮排
-        full_html = f"""
-<div style="background-color:{bg_color}; padding:25px; border-radius:15px; border:1px solid {label_color}; border-left:10px solid {label_color}; margin-top:20px;">
-{phonetic_html}
-<div style="font-size:2em; margin-bottom:10px; color:{text_color};">
-<strong style="color:{label_color};">拆解：</strong>
-<span style="color:{breakdown_color}; font-family:monospace; font-weight:bold;">{q['breakdown']}</span>
-</div>
-<div style="font-size:1.5em; color:{text_color};">
-<strong style="color:{label_color};">釋義：</strong> {q['definition']}
-</div>
-{example_html}
-</div>
-"""
-        st.markdown(full_html, unsafe_allow_html=True)
+        st.markdown("---")
+        st.success(f"**構成拆解：** {q['breakdown']}")
+        st.write(f"**釋義定義：** {q['definition']}")
+        if q.get('example') and q['example'] != "nan":
+            st.info(f"**例句練習：** {q['example']}")
+            if q.get('translation') and q['translation'] != "nan":
+                st.caption(f"({q['translation']})")
 def ui_search_page(data, selected_cat):
     st.title("搜尋與瀏覽")
     relevant = data if selected_cat == "全部顯示" else [c for c in data if c['category'] == selected_cat]
