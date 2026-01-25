@@ -523,20 +523,23 @@ def display_filtered_results(data, query, selected_cat):
     
     if not found_any:
         st.info(f"在「{selected_cat}」分類中找不到關於「{query}」的結果。")
-def ui_newbie_whiteboard_page():
-    st.markdown('<h1 class="responsive-title">📖 教學區</h1>', unsafe_allow_html=True)
-    ui_newbie_whiteboard() # 直接呼叫你原本寫好的白板組件
 # ==========================================
 # 3. 主程序入口
 # ==========================================
 def main():
     st.set_page_config(page_title="Etymon Decoder", layout="wide")
     inject_custom_css()
+    
+    # --- 1. 刷新功能區 (放最上面) ---
+    if st.sidebar.button("🔄 強制刷新雲端數據", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+    
+    # 讀取資料
     data = load_db()
     
+    # --- 2. 導航選單 ---
     st.sidebar.title("Etymon Decoder")
-    
-    # 任務：教學區在字根區之上
     menu = st.sidebar.radio(
         "導航", 
         ["教學區", "字根區", "學習區", "國小區", "國中區", "高中區", "醫學區", "法律區", "人工智慧區", "心理與社會區", "生物與自然區", "管理區"],
@@ -544,23 +547,81 @@ def main():
     )
     
     st.sidebar.divider()
+
+    # --- 3. 統計與篩選區 ---
+    # 顯示總量統計
+    _, total_words = get_stats(data)
+    st.sidebar.markdown(f"""
+        <div class="stats-container">
+            <small>資料庫總計</small><br>
+            <span style="font-size: 1.5rem; font-weight: bold;">{total_words}</span> Words
+        </div>
+    """, unsafe_allow_html=True)
     
-    # 分類篩選
+    st.sidebar.markdown("### 分類篩選")
     cats = ["全部顯示"] + sorted(list(set(c['category'] for c in data)))
     selected_cat = st.sidebar.radio("選擇領域", cats, key="filter_cat")
 
+    # --- 4. 主內容路由 ---
     if menu == "教學區":
-        ui_newbie_whiteboard_page()
+        ui_newbie_whiteboard_page() 
+        
     elif menu == "字根區":
-        # 顯示該分類下的「全部列表」並支援「搜尋」
-        ui_search_page_with_logic(data, selected_cat)
+        # 任務：預設全部列出 + 搜尋功能
+        ui_search_page_all_list(data, selected_cat)
+        
     elif menu == "學習區":
         ui_quiz_page(data)
+        
     else:
-        # 其他學術分區：維持目前的按鈕牆或列表顯示
         target_cat = menu.replace("區", "")
-        domain_data = [c for c in data if target_cat in c['category']]
+        domain_data = [c for c in data if target_cat in str(c.get('category',''))]
         ui_domain_page(domain_data, f"{menu}字根庫", "#1E88E5", "#F0F2F6")
+
+# ==========================================
+# 修正後的字根區：支援全部列出與搜尋
+# ==========================================
+def ui_search_page_all_list(data, selected_cat):
+    st.markdown('<h1 class="responsive-title">搜尋與瀏覽</h1>', unsafe_allow_html=True)
+    
+    # 搜尋框
+    query = st.text_input("搜尋單字或字根...", placeholder="例如：act, bio, 動作...", key="root_search_bar").strip().lower()
+
+    if selected_cat == "全部顯示":
+        st.info("💡 請從左側選單的「分類篩選」選擇一個特定領域來查看完整列表。")
+        ui_newbie_whiteboard()
+        return
+
+    # 取得該領域的所有資料
+    relevant_cats = [c for c in data if c['category'] == selected_cat]
+    found_any = False
+    
+    for cat in relevant_cats:
+        for group in cat.get('root_groups', []):
+            root_text = "/".join(group['roots']).lower()
+            meaning_text = group['meaning'].lower()
+            
+            # 搜尋過濾邏輯：query 為空時顯示全部
+            matched_vocab = [
+                v for v in group.get('vocabulary', [])
+                if not query or (query in v['word'].lower() or query in root_text or query in meaning_text)
+            ]
+            
+            if matched_vocab:
+                found_any = True
+                root_label = f"{root_text.upper()} ({group['meaning']})"
+                with st.expander(f"✨ {root_label}", expanded=True if query else False):
+                    for v in matched_vocab:
+                        st.markdown(f'**{v["word"]}** `{v["breakdown"]}`: {v["definition"]}')
+                        if st.button("播放", key=f"p_{v['word']}_{root_text}"): speak(v['word'])
+    
+    if not found_any and query:
+        st.warning(f"在「{selected_cat}」中找不到與「{query}」相關的內容。")
+
+def ui_newbie_whiteboard_page():
+    """獨立的教學區頁面內容"""
+    st.markdown('<h1 class="responsive-title">📖 教學區</h1>', unsafe_allow_html=True)
+    ui_newbie_whiteboard() # 呼叫你原本定義的教學白板
 # 確保在檔案最下方呼叫
 if __name__ == "__main__":
     main()
