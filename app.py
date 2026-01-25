@@ -68,34 +68,26 @@ def inject_custom_css():
 # 1. 修正語音發音 (改良為 HTML5 標籤)
 # ==========================================
 def speak(text):
-    """終極修正版：使用 JavaScript 強制觸發瀏覽器音訊播放"""
     try:
-        import time
         tts = gTTS(text=text, lang='en')
         fp = BytesIO()
         tts.write_to_fp(fp)
         fp.seek(0)
         audio_base64 = base64.b64encode(fp.read()).decode()
         
-        # 產生唯一 ID 避免快取衝突
-        unique_id = f"audio_{int(time.time() * 1000)}"
+        import time
+        # 加入隨機 hash 確保每次點擊都是新資源
+        random_hash = int(time.time())
         
-        # 使用 JavaScript 建立音訊物件並播放
-        # 這能繞過 HTML 標籤不更新的問題，並強制瀏覽器執行播放指令
+        # 使用 standard markdown 而非 components.v1.html，iOS 對此支援度較高
         audio_html = f"""
-            <div id="{unique_id}"></div>
-            <script>
-                (function() {{
-                    var audio = new Audio("data:audio/mp3;base64,{audio_base64}");
-                    audio.play().catch(function(error) {{
-                        console.log("播放被瀏覽器阻擋，嘗試手動觸發", error);
-                    }});
-                }})();
-            </script>
+            <audio autoplay="true" playsinline>
+                <source src="data:audio/mp3;base64,{audio_base64}#t={random_hash}" type="audio/mp3">
+            </audio>
         """
-        st.components.v1.html(audio_html, height=0)
+        st.markdown(audio_html, unsafe_allow_html=True)
     except Exception as e:
-        st.error(f"語音錯誤: {e}")
+        st.error(f"播放失敗: {e}")
 # ==========================================
 # 1. 核心配置與雲端同步 (保留原代碼)
 # ==========================================
