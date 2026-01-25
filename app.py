@@ -398,25 +398,50 @@ def main():
     # 顯示在側邊欄，確保上方那個 0 消失
     st.sidebar.metric("資料庫總計", f"{total_words} Words")
 
+    # ==========================================
+# 3. 主程序入口 (修正版)
+# ==========================================
+def main():
+    st.set_page_config(page_title="Etymon Decoder", layout="wide")
+    data = load_db()
+    
+    # 1. 側邊欄標題與導覽
+    st.sidebar.title("Etymon Decoder")
+    menu = st.sidebar.radio("導航", ["字根區", "學習區", "高中 7000 區", "醫學區", "法律區", "人工智慧區", "心理與社會區", "生物與自然區", "管理區"])
+    
+    st.sidebar.divider()
+    
+    # 2. 強制刷新按鈕
+    if st.sidebar.button("強制刷新雲端數據", use_container_width=True): 
+        st.cache_data.clear()
+        st.rerun()
+    
+    # 3. 計算總字數 (遍歷嵌套結構)
+    total_words = 0
+    for block in data:
+        for sub in block['sub_categories']:
+            for group in sub['root_groups']:
+                total_words += len(group['vocabulary'])
+    
+    st.sidebar.metric("資料庫總計", f"{total_words} Words")
+
+    # --- 邏輯 A：字根區 (A-Z 大區模式) ---
     if menu == "字根區":
         st.title("🗂️ 字根總覽 (A-Z 大區)")
-        
         if not data:
             st.error("目前讀取不到任何區塊資料，請確認 Google Sheets 格式。")
             return
 
         for block in data:
-            # 統計該字母區塊內的單字數
-            block_word_count = sum(len(g['vocabulary']) for s in block['sub_categories'] for g in s['root_groups'])
+            # 計算該大區內的單字總數
+            block_count = sum(len(g['vocabulary']) for s in block['sub_categories'] for g in s['root_groups'])
             
-            with st.expander(f"✨ 字母區塊：{block['letter']} ({block_word_count} 字)"):
+            with st.expander(f"✨ 字母區塊：{block['letter']} (共 {block_count} 字)"):
                 for sub in block['sub_categories']:
-                    st.markdown(f"#### 📂 分類：{sub['name']}")
+                    st.markdown(f"#### 📂 分類分支：{sub['name']}")
                     for group in sub['root_groups']:
-                        # 顯示字根與意義
                         st.info(f"**字根：** {' / '.join(group['roots'])} ({group['meaning']})")
                         
-                        # 將單字清單轉成 DataFrame 顯示
                         display_df = []
                         for v in group['vocabulary']:
                             display_df.append({
@@ -428,5 +453,45 @@ def main():
                         if display_df:
                             st.table(display_df)
                     st.divider()
+
+    # --- 邏輯 B：學習區 (測驗模式) ---
+    elif menu == "學習區":
+        # 注意：學習區需要平面化的資料格式，需轉換 data 結構
+        flat_data = []
+        for block in data:
+            for sub in block['sub_categories']:
+                flat_data.append({
+                    "category": sub['name'],
+                    "root_groups": sub['root_groups']
+                })
+        ui_quiz_page(flat_data)
+
+    # --- 邏輯 C：管理區 ---
+    elif menu == "管理區":
+        ui_admin_page(data)
+
+    # --- 邏輯 D：各專業區塊 (自動過濾模式) ---
+    else:
+        # 根據選單標題過濾關鍵字
+        keyword = menu.replace(" 區", "")
+        st.title(f"🔍 {menu}")
+        
+        found_any = False
+        for block in data:
+            for sub in block['sub_categories']:
+                # 如果分類名稱包含選單關鍵字 (例如 "醫學" 包含在 "Medicine 醫學" 中)
+                if keyword in sub['name'] or (keyword == "高中 7000" and "高中" in sub['name']):
+                    found_any = True
+                    with st.expander(f"📂 {sub['name']} (來自 {block['letter']} 區)"):
+                        for group in sub['root_groups']:
+                            st.success(f"**字根：** {' / '.join(group['roots'])} ({group['meaning']})")
+                            for v in group['vocabulary']:
+                                render_word_card(v, sub['name'], "#1E88E5")
+        
+        if not found_any:
+            st.info(f"目前在 A-Z 資料庫中尚未發現標記為「{keyword}」的分類。")
+
+if __name__ == "__main__":
+    main()
 if __name__ == "__main__":
     main()
