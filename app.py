@@ -202,7 +202,8 @@ def ui_time_based_lofi():
         # 晚間/深夜 (19:00 - 05:59)
         mode_name = "深夜助眠 (Sleep)"
         # 換成更穩定的 Sleepy Lofi 連結
-        video_id = "rUxyKA_-grg" 
+        video_id = "2au51-rm6cE
+" 
         icon = "🌙"
 
     # 3. 在側邊欄呈現
