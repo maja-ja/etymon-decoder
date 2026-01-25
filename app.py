@@ -37,7 +37,7 @@ def speak(text):
 @st.cache_data(ttl=600)
 def load_db():
     # 請確保 SHEET_ID 是正確的
-    SHEET_ID = '1W1ADPyf5gtGdpIEwkxBEsaJ0bksYldf4AugoXnq6Zvg'
+    SHEET_ID = '1Gs0FX7c8bUQTnSytX1EqjMLATeVc30GmdjSOYW_sYsQ/'
     GSHEET_URL = f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv'
     BLOCKS = ["A:I", "J:R", "S:AA", "AB:AJ", "AK:AS"]
     all_dfs = []
