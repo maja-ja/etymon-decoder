@@ -49,68 +49,73 @@ FEEDBACK_URL = st.secrets.get("feedback_sheet_url")
 @st.cache_data(ttl=600)
 def load_db():
     import string
-    # A=0, B=11, C=22 ... Z=275
+    # A=0, B=11, C=22, D=33... 這是對應您 A-Z 橫向並排的索引
     ALPHABET = list(string.ascii_uppercase)
     BLOCK_MAP = {letter: i * 11 for i, letter in enumerate(ALPHABET)}
     
     try:
-        # 讀取完整試算表
+        # 讀取完整試算表，確保不漏掉任何欄位
         raw_df = pd.read_csv(GSHEET_URL)
+        if raw_df.empty:
+            return []
     except Exception as e:
-        st.error(f"讀取失敗: {e}")
+        st.error(f"讀取試算表失敗: {e}")
         return []
 
     structured_data = []
+    total_word_count = 0
 
     for letter, start_idx in BLOCK_MAP.items():
-        try:
-            # 檢查欄位是否足夠
-            if start_idx + 8 >= len(raw_df.columns):
-                continue
+        # 檢查該區塊是否存在於試算表中
+        if start_idx + 3 >= len(raw_df.columns): 
+            continue
             
-            # 擷取該區塊的 9 欄資料
+        try:
+            # 擷取該字母區塊的 9 欄
             df_part = raw_df.iloc[:, start_idx:start_idx+9].copy()
             df_part.columns = [
                 'category', 'roots', 'meaning', 'word', 
                 'breakdown', 'definition', 'phonetic', 'example', 'translation'
             ]
             
-            # 清理資料：移除標題行、處理空值
+            # 清理資料：移除標題行，並確保 'word' 欄位有內容
+            df_part = df_part[df_part['word'].notna()]
+            df_part = df_part[df_part['word'].astype(str).str.lower() != 'word']
             df_part = df_part[df_part['category'].astype(str).str.lower() != 'category']
-            # 核心修正：必須確保 word 欄位不是空的，否則不計入
-            df_part = df_part.dropna(subset=['word'])
-            df_part = df_part[df_part['word'].astype(str).str.strip() != ""]
 
             if df_part.empty:
                 continue
 
             sub_cats = []
-            # 按分類分組
+            # 第一層：依據 Category (小分支) 分組
             for cat_name, cat_group in df_part.groupby('category'):
                 root_groups = []
-                # 按字根分組
+                # 第二層：依據 Roots 分組
                 for (roots, meaning), group_df in cat_group.groupby(['roots', 'meaning']):
                     vocabulary = []
                     for _, row in group_df.iterrows():
-                        vocabulary.append({
-                            "word": str(row['word']).strip(),
-                            "breakdown": str(row['breakdown']).strip(),
-                            "definition": str(row['definition']).strip(),
-                            "phonetic": str(row['phonetic']).strip() if str(row['phonetic']) != "nan" else "",
-                            "example": str(row['example']).strip() if str(row['example']) != "nan" else "",
-                            "translation": str(row['translation']).strip() if str(row['translation']) != "nan" else ""
-                        })
+                        word_val = str(row['word']).strip()
+                        if word_val and word_val.lower() != 'nan':
+                            vocabulary.append({
+                                "word": word_val,
+                                "breakdown": str(row['breakdown']),
+                                "definition": str(row['definition']),
+                                "phonetic": str(row['phonetic']),
+                                "example": str(row['example']),
+                                "translation": str(row['translation'])
+                            })
+                            total_word_count += 1
                     
                     if vocabulary:
                         root_groups.append({
                             "roots": [r.strip() for r in str(roots).split('/')],
-                            "meaning": str(meaning).strip(),
+                            "meaning": str(meaning),
                             "vocabulary": vocabulary
                         })
                 
                 if root_groups:
                     sub_cats.append({
-                        "name": str(cat_name).strip(),
+                        "name": str(cat_name),
                         "root_groups": root_groups
                     })
             
@@ -119,7 +124,7 @@ def load_db():
                     "letter": letter,
                     "sub_categories": sub_cats
                 })
-        except:
+        except Exception:
             continue
             
     return structured_data
