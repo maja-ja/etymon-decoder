@@ -82,7 +82,7 @@ def render_word_card(v, theme_color="#1E88E5"):
                 st.caption(f"/{v['phonetic']}/")
         with col_p:
             # 使用隨機 key 避免在同頁面出現重複 ID 導致按鈕失效
-            btn_key = f"v_{v['word']}_{title}"_{random.randint(0, 100000)}"
+            btn_key = f"v_{v['word']}_{title}_{random.randint(0, 100000)}"
             if st.button("🔊", key=btn_key): 
                 speak(v['word'])
         
