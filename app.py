@@ -46,6 +46,11 @@ def inject_custom_css():
                 text-shadow: 1px 1px 2px black;
                 display: inline-block;
             }
+            /* 嘗試讓 selectbox 的輸入框唯讀，防止手機跳出鍵盤 */
+            .stSelectbox div[role="button"] input {
+                caret-color: transparent;
+                pointer-events: none;
+            }
         </style>
     """, unsafe_allow_html=True)
 
@@ -145,8 +150,11 @@ def ui_domain_page(domain_data, title, theme_color, bg_color):
     for cat in domain_data:
         for group in cat.get('root_groups', []):
             label = f"{'/'.join(group['roots'])} ({group['meaning']})"
-            if label not in root_map: root_map[label] = group
+            root_map[label] = group
     
+    # 使用 st.pills 代替 selectbox (更適合手機點選，且不能輸入)
+    options = sorted(root_map.keys())
+    selected_label = st.pills("選擇要複習的字根", options, selection_mode="single", key=f"pills_{title}")
     selected_label = st.selectbox("選擇要複習的字根", sorted(root_map.keys()), key=title)
     
     if selected_label:
@@ -327,9 +335,12 @@ def main():
         </div>
     """, unsafe_allow_html=True)
     # 路由邏輯 (保留原功能)
+# 在 main() 函式的 "字根區" 邏輯中：
     if menu == "字根區":
         cats = ["全部顯示"] + sorted(list(set(c['category'] for c in data)))
-        ui_search_page(data, st.sidebar.selectbox("分類篩選", cats))
+    # 將原本的 selectbox 改為 radio
+        selected_cat = st.sidebar.radio("分類篩選", cats, key="cat_filter_radio")
+        ui_search_page(data, selected_cat)
     elif menu == "學習區": ui_quiz_page(data)
     elif menu == "國小區":
         elem = [c for c in data if any(k in str(c.get('category','')) for k in ["國小", "Elementary"])]
