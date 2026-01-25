@@ -361,7 +361,7 @@ def main():
     elif menu == "學習區":
         ui_quiz_page(data)
 
-elif menu == "管理區":
+    elif menu == "管理區":
 
         st.title("🛠️ 管理員控制台")
 
