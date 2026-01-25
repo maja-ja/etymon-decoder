@@ -48,62 +48,71 @@ PENDING_FILE = 'pending_data.json'
 FEEDBACK_URL = st.secrets.get("feedback_sheet_url")
 @st.cache_data(ttl=600)
 def load_db():
-    # 根據截圖精確定義起始欄位：A=0, L=11, W=22, AH=33, AS=44
-    START_COLS = [0, 11, 22, 33, 44] 
+    # 定義起始欄位與對應的標籤
+    # A 區 (A:I) = 0, B 區 (L:T) = 11, C 區 (W:AE) = 22...
+    BLOCKS = {
+        "A 區": 0,
+        "B 區": 11,
+        "C 區": 22,
+        "D 區": 33,
+        "E 區": 44
+    }
     
     try:
-        # 讀取完整試算表，不設 header 避免自動抓錯第一列
         raw_df = pd.read_csv(GSHEET_URL)
     except Exception as e:
         st.error(f"讀取失敗: {e}")
         return []
 
-    all_dfs = []
-    for start in START_COLS:
+    all_data = []
+    for label, start in BLOCKS.items():
         try:
-            # 擷取 9 欄
+            if start >= len(raw_df.columns): continue
+            
+            # 擷取 9 欄並清洗
             df_part = raw_df.iloc[:, start:start+9].copy()
-            # 強制賦予名稱
             df_part.columns = ['category', 'roots', 'meaning', 'word', 'breakdown', 'definition', 'phonetic', 'example', 'translation']
             
-            # 過濾：1. 移除標題行本身 2. 移除 category 或 word 是空的行
+            # 移除標題列與空行
             df_part = df_part[df_part['category'].astype(str).str.lower() != 'category']
-            df_part = df_part.dropna(subset=['category', 'word'])
+            df_part = df_part.dropna(subset=['word'])
             
-            all_dfs.append(df_part)
+            # 重要：在資料中存入它是哪一區
+            for _, row in df_part.iterrows():
+                all_data.append({
+                    "block_label": label, # 標記區塊
+                    "category": str(row['category']),
+                    "roots": str(row['roots']),
+                    "meaning": str(row['meaning']),
+                    "word": str(row['word']),
+                    "breakdown": str(row['breakdown']),
+                    "definition": str(row['definition']),
+                    "phonetic": str(row['phonetic']) if str(row['phonetic']) != "nan" else "",
+                    "example": str(row['example']) if str(row['example']) != "nan" else "",
+                    "translation": str(row['translation']) if str(row['translation']) != "nan" else ""
+                })
         except:
             continue
 
-    if not all_dfs: return []
-    df = pd.concat(all_dfs, ignore_index=True)
-    df = df.apply(lambda x: x.astype(str).str.strip())
-
-    # 轉化為結構化資料
+    # 將扁平資料轉回結構化資料 (維持您 UI 需要的格式)
+    # 這裡我們改以 block_label 作為分組依據
     structured_data = []
-    for cat_name, cat_group in df.groupby('category'):
-        if cat_name in ["nan", "None", ""]: continue
-        
+    df_final = pd.DataFrame(all_data)
+    
+    for label, block_group in df_final.groupby('block_label'):
         root_groups = []
-        for (roots, meaning), group_df in cat_group.groupby(['roots', 'meaning']):
-            vocabulary = []
-            for _, row in group_df.iterrows():
-                if row['word'] == "nan": continue
-                vocabulary.append({
-                    "word": row['word'],
-                    "breakdown": row['breakdown'],
-                    "definition": row['definition'],
-                    "phonetic": row['phonetic'] if row['phonetic'] != "nan" else "",
-                    "example": row['example'] if row['example'] != "nan" else "",
-                    "translation": row['translation'] if row['translation'] != "nan" else ""
-                })
-            if vocabulary:
-                root_groups.append({
-                    "roots": [r.strip() for r in str(roots).split('/')],
-                    "meaning": str(meaning),
-                    "vocabulary": vocabulary
-                })
-        if root_groups:
-            structured_data.append({"category": cat_name, "root_groups": root_groups})
+        for (roots, meaning), group_df in block_group.groupby(['roots', 'meaning']):
+            vocabulary = [row.to_dict() for _, row in group_df.iterrows()]
+            root_groups.append({
+                "roots": [r.strip() for r in roots.split('/')],
+                "meaning": meaning,
+                "vocabulary": vocabulary
+            })
+        structured_data.append({
+            "block_label": label, 
+            "category": label, # 讓 category 顯示為區塊名
+            "root_groups": root_groups
+        })
     return structured_data
 def save_feedback_to_gsheet(word, feedback_type, comment):
     try:
