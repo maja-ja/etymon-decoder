@@ -73,7 +73,7 @@ def load_db():
 
 def ui_quiz_page(data):
     """學習區：精美卡片 + 喇叭按鈕"""
-    st.title("🎴 學習區 (Flashcards)")
+    st.title("學習區 (Flashcards)")
     pool = [{**v, "cat": c['category']} for c in data for g in c['root_groups'] for v in g['vocabulary']]
     
     if not pool:
@@ -97,9 +97,9 @@ def ui_quiz_page(data):
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        if st.button("👀 顯示答案", use_container_width=True): st.session_state.flipped = True
+        if st.button("顯示答案", use_container_width=True): st.session_state.flipped = True
     with c2:
-        if st.button("🔊 播放發音", use_container_width=True): speak(q['word'])
+        if st.button("播放發音", use_container_width=True): speak(q['word'])
     with c3:
         if st.button("➡️ 下一題", use_container_width=True):
             st.session_state.flash_q = random.choice(pool)
@@ -125,7 +125,7 @@ def main():
     data = load_db()
     
     # 側邊欄導航
-    st.sidebar.title("🧬 Etymon Decoder")
+    st.sidebar.title("Etymon Decoder")
     menu = st.sidebar.radio("導航", ["學習區", "字根區", "醫學區", "法律區", "高中核心", "管理區"])
     
     # 計算單字總數
@@ -140,7 +140,7 @@ def main():
         </div>
     """, unsafe_allow_html=True)
     
-    if st.sidebar.button("🔄 刷新資料"):
+    if st.sidebar.button("刷新資料"):
         st.cache_data.clear()
         st.rerun()
 
@@ -149,7 +149,7 @@ def main():
         ui_quiz_page(data)
     
     elif menu == "字根區":
-        st.title("🔍 字根總覽與搜尋")
+        st.title("字根總覽與搜尋")
         q = st.text_input("輸入字根或單字搜尋...")
         for c in data:
             with st.expander(f"📂 {c['category']}"):
@@ -162,7 +162,7 @@ def main():
                         st.table(df[['word', 'breakdown', 'definition']])
 
     elif menu == "管理區":
-        st.title("🛡️ 管理後台")
+        st.title("管理後台")
         pwd = st.text_input("管理員密碼", type="password")
         if pwd == st.secrets.get("admin_password", "8787"):
             st.json(data)
@@ -171,7 +171,7 @@ def main():
     else: # 專業分區
         keyword = menu.replace("區", "")
         filtered = [c for c in data if keyword in c['category']]
-        st.title(f"🔍 {menu}")
+        st.title(f"{menu}")
         for c in filtered:
             for g in c['root_groups']:
                 with st.expander(f"✨ {'/'.join(g['roots'])} ({g['meaning']})"):
