@@ -625,7 +625,7 @@ def main():
     else:
         target_cat = menu.replace("區", "")
         domain_data = [c for c in data if target_cat in str(c.get('category',''))]
-        ui_domain_page(domain_data, f"{menu}字根庫", "#1E88E5", "#F0F2F6")
+        ui_domain_page(domain_data, f"{menu}", "#1E88E5", "#F0F2F6")
 
 
 # 確保在檔案最下方呼叫
