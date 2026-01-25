@@ -367,7 +367,7 @@ def main():
                         render_word_card(item['data'], theme_color="#1E88E5")
             else:
                 st.info("查無結果，請嘗試其他關鍵字。")
-    if menu == "字根區":
+    elif menu == "字根區":
         st.title("🗂️ 字根總覽 (A-Z 大區)")
         if not data:
             st.warning("目前讀取不到資料。請確認試算表 A、L、W 欄等起始位是否有內容。")
