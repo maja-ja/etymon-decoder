@@ -14,50 +14,56 @@ from streamlit_gsheets import GSheetsConnection
 def inject_custom_css():
     st.markdown("""
         <style>
-            /* 基礎縮放與唯讀設定 (保持不變) */
-            html { font-size: 16px; }
-            .stSelectbox div[role="button"] input { caret-color: transparent !important; pointer-events: none !important; }
+            /* 1. 基礎字體比例加大 */
+            html { font-size: 20px; } /* 整體基準點從 16px 提升 */
 
-            /* 優化 st.pills 的外觀：確保跟隨系統顏色且在手機上易於點擊 */
-            div[data-testid="stPills"] button {
-                border-radius: 20px !important;
-                padding: 5px 15px !important;
-                background-color: var(--secondary-background-color) !important;
-                color: var(--text-color) !important;
-                border: 1px solid rgba(128, 128, 128, 0.2) !important;
-            }
-            
-            /* 選中狀態的顏色 (使用主題色) */
-            div[data-testid="stPills"] button[aria-selected="true"] {
-                background-color: var(--primary-color) !important;
-                color: white !important;
-                border-color: var(--primary-color) !important;
+            /* 2. 手機端 (大字體優化) */
+            @media (max-width: 600px) {
+                .responsive-word { font-size: 15vw !important; margin-bottom: 10px; }
+                .responsive-breakdown { font-size: 6vw !important; padding: 10px 15px !important; }
+                .responsive-text { font-size: 5.5vw !important; line-height: 1.5; }
+                .stButton button { height: 3.5rem; font-size: 1.2rem !important; }
             }
 
-            /* 構造拆解框：完全跟隨系統顏色 */
+            /* 3. 電腦端 (清晰大字) */
+            @media (min-width: 601px) {
+                .responsive-word { font-size: 4rem !important; }
+                .responsive-breakdown { font-size: 2rem !important; }
+                .responsive-text { font-size: 1.5rem !important; }
+            }
+
+            /* 4. 構造拆解框：完全隨系統變色，不再寫死深色 */
             .breakdown-container {
                 font-family: 'Courier New', monospace;
                 font-weight: bold;
                 background-color: var(--secondary-background-color); 
                 color: var(--text-color); 
-                padding: 6px 15px;
-                border-radius: 8px;
-                border: 1px solid rgba(128, 128, 128, 0.3);
+                padding: 12px 20px;
+                border-radius: 12px;
+                border: 2px solid var(--primary-color); /* 用主題色框出重點 */
                 display: inline-block;
+                margin: 10px 0;
             }
-            
-            /* 側邊欄統計框 */
+
+            /* 5. 側邊欄統計框：隨系統變色 */
             .stats-container {
                 text-align: center; 
-                padding: 15px; 
+                padding: 20px; 
                 background-color: var(--secondary-background-color); 
                 border: 1px solid rgba(128, 128, 128, 0.2);
-                border-radius: 12px; 
+                border-radius: 15px; 
                 color: var(--text-color);
+            }
+
+            /* 6. 禁止 Selectbox 輸入並加強 Pill 按鈕視覺 */
+            .stSelectbox div[role="button"] input { caret-color: transparent !important; pointer-events: none !important; }
+            
+            div[data-testid="stPills"] button {
+                font-size: 1.1rem !important;
+                padding: 8px 16px !important;
             }
         </style>
     """, unsafe_allow_html=True)
-
 # ==========================================
 # 1. 修正語音發音 (改良為 HTML5 標籤)
 # ==========================================
