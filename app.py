@@ -358,31 +358,33 @@ def main():
                         if display_df:
                             st.table(display_df)
                     st.divider()
-
     elif menu == "學習區":
         ui_quiz_page(data)
 
     elif menu == "管理區":
         st.title("🛠️ 管理員功能")
-        st.write("目前資料庫由 A-Z 橫向區塊組成。")
-        st.json(data[:1]) # 顯示一組結構供偵錯
+        st.write("目前資料庫結構概覽：")
+        st.json(data)
 
     else:
-        # 各專業分區篩選邏輯 (醫學、法律、高中等)
+        # 通用篩選邏輯：適用於 醫學區、法律區、高中 7000 區等
         keyword = menu.replace(" 區", "").strip()
         st.title(f"🔍 {menu}")
+        
         found_any = False
         for block in data:
-            for sub in block['sub_categories']:
+            for sub in block.get('sub_categories', []):
+                # 判斷選單關鍵字是否在分類名稱中
                 if keyword in sub['name']:
                     found_any = True
-                    st.subheader(f"📂 {sub['name']} (來源：{block['letter']} 區)")
-                    for group in sub['root_groups']:
-                        st.success(f"**字根：** {' / '.join(group['roots'])} ({group['meaning']})")
-                        for v in group['vocabulary']:
-                            render_word_card(v, "#1E88E5")
+                    with st.expander(f"📂 {sub['name']} (來源：字母 {block['letter']} 區)"):
+                        for group in sub['root_groups']:
+                            st.success(f"**字根：** {' / '.join(group['roots'])} ({group['meaning']})")
+                            for v in group['vocabulary']:
+                                # 這裡使用您定義好的 render_word_card
+                                render_word_card(v, sub['name'], "#1E88E5")
+        
         if not found_any:
-            st.info(f"資料庫中暫無標記為「{keyword}」的分類。")
-
+            st.info(f"目前在 A-Z 資料庫中，尚未發現標記為「{keyword}」的分類內容。")
 if __name__ == "__main__":
     main()
