@@ -169,43 +169,65 @@ def get_stats(data):
 # 2. 通用與專業區域組件 (調整為自適應樣式)
 # ==========================================
 def ui_domain_page(domain_data, title, theme_color, bg_color):
+    # --- 任務 1：使用說明介面 ---
+    with st.expander("📖 初次使用？點擊查看「拆解式學習法」說明", expanded=False):
+        st.markdown(f"""
+        <div style="padding:15px; border-radius:10px; background-color:{bg_color}22; border-left:5px solid {theme_color};">
+            <h4 style="color:{theme_color}; margin-top:0;">如何使用此工具？</h4>
+            <ol class="responsive-text">
+                <li><b>搜尋字根：</b> 在下方輸入框輸入你想找的字根（如 <code>bio</code>）或含義（如 <code>生命</code>）。</li>
+                <li><b>觀察構造：</b> 點開單字後，重點看「構造拆解」，理解前綴、字根、後綴如何組合成新字。</li>
+                <li><b>聽音記憶：</b> 點擊「播放」按鈕，結合發音與拆解能大幅提升記憶深度。</li>
+            </ol>
+        </div>
+        """, unsafe_allow_html=True)
+
     st.markdown(f'<h1 class="responsive-title">{title}</h1>', unsafe_allow_html=True)
     
+    # 建立字根映射表
     root_map = {}
     for cat in domain_data:
         for group in cat.get('root_groups', []):
             label = f"{'/'.join(group['roots'])} ({group['meaning']})"
             root_map[label] = group
     
-    options = sorted(root_map.keys())
-
-    # 只保留 Pills 按鈕式選單，刪除 Selectbox
-    selected_label = st.pills("選擇字根", options, selection_mode="single", key=f"p_v_{title}")
+    # --- 任務 2：刪除按鈕，改為輸入搜尋框 ---
+    search_query = st.text_input("輸入字根或含義進行篩選", placeholder="例如：act, bio, 動作, 生命...")
     
-    if selected_label:
-        group = root_map[selected_label]
-        for v in group.get('vocabulary', []):
-            with st.container():
-                # 加大顯示空間
-                st.markdown(f'<div class="responsive-word" style="font-weight:bold; color:var(--primary-color);">{v["word"]}</div>', unsafe_allow_html=True)
-                
-                col_play, col_report, _ = st.columns([1, 1, 2])
-                with col_play:
-                    if st.button("播放", key=f"s_{v['word']}"): speak(v['word'])
-                with col_report:
-                    ui_feedback_component(v['word'])
-                
-                # 構造拆解與釋義 (大字版)
-                st.markdown(f"""
-                    <div style="margin-top: 20px;">
-                        <span class="responsive-text" style="opacity: 0.8;">構造拆解：</span><br>
-                        <div class="breakdown-container responsive-breakdown">{v['breakdown']}</div>
-                        <div class="responsive-text" style="margin-top: 15px;">
-                            <b>中文定義：</b> {v['definition']}
-                        </div>
-                    </div>
-                    <hr style="margin: 30px 0; opacity: 0.2;">
-                """, unsafe_allow_html=True)
+    # 根據輸入內容篩選字根
+    filtered_labels = [
+        label for label in root_map.keys() 
+        if search_query.lower() in label.lower()
+    ]
+
+    if search_query:
+        if filtered_labels:
+            for label in filtered_labels:
+                group = root_map[label]
+                with st.expander(f"字根：{label}", expanded=True):
+                    for v in group.get('vocabulary', []):
+                        st.markdown(f'<div class="responsive-word" style="font-weight:bold; color:{theme_color};">{v["word"]}</div>', unsafe_allow_html=True)
+                        
+                        col_play, col_report, _ = st.columns([1, 1, 2])
+                        with col_play:
+                            if st.button("播放", key=f"s_{v['word']}_{label}"): speak(v['word'])
+                        with col_report:
+                            ui_feedback_component(v['word'])
+                        
+                        st.markdown(f"""
+                            <div style="margin-top: 10px;">
+                                <span class="responsive-text" style="opacity: 0.8;">構造拆解：</span><br>
+                                <div class="breakdown-container responsive-breakdown">{v['breakdown']}</div>
+                                <div class="responsive-text" style="margin-top: 10px;">
+                                    <b>中文定義：</b> {v['definition']}
+                                </div>
+                            </div>
+                            <hr style="margin: 20px 0; opacity: 0.1;">
+                        """, unsafe_allow_html=True)
+        else:
+            st.info("找不到相關字根，請查明關鍵字。")
+    else:
+        st.caption("請在上方輸入框輸入字根開始探索。")
 def ui_feedback_component(word):
     with st.popover("錯誤回報"):
         st.write(f"回報單字：**{word}**")
