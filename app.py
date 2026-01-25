@@ -69,9 +69,8 @@ def inject_custom_css():
 # ==========================================
 def speak(text):
     """
-    雙模播放機制：
-    1. 自動模式：嘗試 JavaScript 自動播放 (電腦/Android)
-    2. 備用模式：顯示 HTML5 控制項 (iPhone PWA 專用)
+    針對 iPhone PWA 優化的語音函式
+    解決『轉圈圈』與『無聲』問題
     """
     try:
         from gtts import gTTS
@@ -79,7 +78,7 @@ def speak(text):
         from io import BytesIO
         import time
 
-        # 生成語音
+        # 1. 快速生成語音
         tts = gTTS(text=text, lang='en')
         fp = BytesIO()
         tts.write_to_fp(fp)
@@ -88,32 +87,34 @@ def speak(text):
         ts = int(time.time() * 1000)
         audio_data = f"data:audio/mp3;base64,{audio_base64}"
 
-        # 1. 注入 JavaScript 嘗試自動播放 (電腦端體驗)
+        # 2. 自動播放嘗試 (電腦/安卓)
         st.components.v1.html(f"""
             <script>
                 var audio = new Audio("{audio_data}");
-                audio.play().catch(function(err) {{ 
-                    console.log("Autoplay blocked, user needs manual trigger"); 
-                }});
+                audio.play().catch(function(e) {{ console.log("Autoplay blocked"); }});
             </script>
         """, height=0)
 
-        # 2. 顯示備用播放器 (iPhone PWA 穩定方案)
+        # 3. 備用播放器 (iPhone PWA 穩定方案)
+        # 使用更簡約的樣式，減少轉圈圈的視覺干擾
         st.markdown(f"""
-            <div style="background-color: var(--secondary-background-color); 
-                        padding: 8px 12px; border-radius: 10px; 
-                        border: 1px solid var(--primary-color); margin: 5px 0;">
-                <p style="margin:0 0 5px 0; font-size: 0.75rem; opacity: 0.8;">
-                    若無聲請點擊播放
-                </p>
-                <audio controls style="width: 100%; height: 30px;" playsinline>
+            <div style="background: rgba(30, 136, 229, 0.05); 
+                        padding: 12px; border-radius: 12px; 
+                        border: 1.5px solid #1E88E5; margin: 10px 0;">
+                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 1.2rem; margin-right: 8px;">🔊</span>
+                    <span style="font-size: 0.9rem; color: #1E88E5; font-weight: bold;">
+                        點擊下方播放 (iPhone 備用)
+                    </span>
+                </div>
+                <audio controls style="width: 100%; height: 40px;" playsinline preload="auto">
                     <source src="{audio_data}#t={ts}" type="audio/mp3">
                 </audio>
             </div>
         """, unsafe_allow_html=True)
         
     except Exception as e:
-        st.error(f"語音錯誤: {e}")
+        st.error(f"語音生成失敗，請檢查網路連線。")
 # ==========================================
 # 1. 核心配置與雲端同步 (保留原代碼)
 # ==========================================
