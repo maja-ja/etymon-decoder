@@ -46,62 +46,45 @@ GSHEET_URL = f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out
 PENDING_FILE = 'pending_data.json'
 # 這是你要「寫入」回報的目標網址 (從 secrets 讀取)
 FEEDBACK_URL = st.secrets.get("feedback_sheet_url")
-
 @st.cache_data(ttl=600)
 def load_db():
-    # 1. 根據截圖修正起始欄位 (A=0, L=11, W=22, AH=33, AS=44)
-    # 每組 9 欄資料，中間隔 2 欄空白
+    # 根據截圖精確定義起始欄位：A=0, L=11, W=22, AH=33, AS=44
     START_COLS = [0, 11, 22, 33, 44] 
     
     try:
-        # 直接讀取完整試算表
+        # 讀取完整試算表，不設 header 避免自動抓錯第一列
         raw_df = pd.read_csv(GSHEET_URL)
     except Exception as e:
-        st.error(f"無法讀取 Google Sheets: {e}")
+        st.error(f"讀取失敗: {e}")
         return []
 
     all_dfs = []
     for start in START_COLS:
         try:
-            # 如果起始索引超過總欄位數則跳過
-            if start >= len(raw_df.columns):
-                continue
-            
-            # 擷取該區塊的 9 欄資料
+            # 擷取 9 欄
             df_part = raw_df.iloc[:, start:start+9].copy()
+            # 強制賦予名稱
+            df_part.columns = ['category', 'roots', 'meaning', 'word', 'breakdown', 'definition', 'phonetic', 'example', 'translation']
             
-            # 強制賦予標準欄位名稱
-            df_part.columns = [
-                'category', 'roots', 'meaning', 'word', 
-                'breakdown', 'definition', 'phonetic', 'example', 'translation'
-            ]
-            
-            # 關鍵修正 A：移除重複的標題行 (避免把 "category" 當成分類)
+            # 過濾：1. 移除標題行本身 2. 移除 category 或 word 是空的行
             df_part = df_part[df_part['category'].astype(str).str.lower() != 'category']
-            
-            # 關鍵修正 B：移除整行皆為空的無效資料
-            df_part = df_part.dropna(subset=['category', 'word'], how='all')
+            df_part = df_part.dropna(subset=['category', 'word'])
             
             all_dfs.append(df_part)
         except:
             continue
 
     if not all_dfs: return []
-    
-    # 合併所有區塊並清理空白字元
     df = pd.concat(all_dfs, ignore_index=True)
     df = df.apply(lambda x: x.astype(str).str.strip())
-    
+
+    # 轉化為結構化資料
     structured_data = []
-    # 依照 category 分組，並過濾掉 nan 字串
     for cat_name, cat_group in df.groupby('category'):
-        if cat_name == "nan" or not cat_name:
-            continue
-            
+        if cat_name in ["nan", "None", ""]: continue
+        
         root_groups = []
         for (roots, meaning), group_df in cat_group.groupby(['roots', 'meaning']):
-            if roots == "nan": continue
-            
             vocabulary = []
             for _, row in group_df.iterrows():
                 if row['word'] == "nan": continue
@@ -113,17 +96,14 @@ def load_db():
                     "example": row['example'] if row['example'] != "nan" else "",
                     "translation": row['translation'] if row['translation'] != "nan" else ""
                 })
-            
             if vocabulary:
                 root_groups.append({
-                    "roots": [r.strip() for r in roots.split('/')],
-                    "meaning": meaning,
+                    "roots": [r.strip() for r in str(roots).split('/')],
+                    "meaning": str(meaning),
                     "vocabulary": vocabulary
                 })
-        
         if root_groups:
             structured_data.append({"category": cat_name, "root_groups": root_groups})
-            
     return structured_data
 def save_feedback_to_gsheet(word, feedback_type, comment):
     try:
@@ -391,37 +371,70 @@ def main():
     """, unsafe_allow_html=True)
 
     # --- 以下為各分頁呼叫邏輯 (維持不變) ---
+    # --- main() 內部的分頁邏輯修正 ---
+
+# --- 以下為各分頁呼叫邏輯 (完整修正版) ---
     if menu == "字根區":
-        cats = ["全部顯示"] + sorted(list(set(c['category'] for c in data)))
+        # 確保分類選單排除 nan 與空值
+        cats = ["全部顯示"] + sorted(list(set(str(c['category']) for c in data if c['category'])))
         ui_search_page(data, st.sidebar.selectbox("分類篩選", cats))
+        
     elif menu == "學習區":
         ui_quiz_page(data)
+        
     elif menu == "高中 7000 區":
-        hs = [c for c in data if any(k in c['category'] for k in ["高中", "7000"])]
-        count = sum(len(g['vocabulary']) for c in hs for g in c['root_groups'])
-        ui_domain_page(hs, f"高中核心區 ({count} 字)", "#2E7D32", "#E8F5E9")
+        hs = [c for c in data if any(k in str(c['category']) for k in ["高中", "7000"])]
+        if hs:
+            count = sum(len(g['vocabulary']) for c in hs for g in c['root_groups'])
+            ui_domain_page(hs, f"高中核心區 ({count} 字)", "#2E7D32", "#E8F5E9")
+        else:
+            st.info("目前無高中相關資料")
+            
     elif menu == "醫學區":
-        med = [c for c in data if "醫學" in c['category']]
-        count = sum(len(g['vocabulary']) for c in med for g in c['root_groups'])
-        ui_domain_page(med, f"醫學專業區 ({count} 字)", "#C62828", "#FFEBEE")
+        # 增加 Medicine 英文匹配
+        med = [c for c in data if any(k in str(c['category']) for k in ["醫學", "Medicine", "Med"])]
+        if med:
+            count = sum(len(g['vocabulary']) for c in med for g in c['root_groups'])
+            ui_domain_page(med, f"醫學專業區 ({count} 字)", "#C62828", "#FFEBEE")
+        else:
+            st.warning("找不到醫學分類，請檢查試算表 Category 欄位")
+            
     elif menu == "法律區":
-        law = [c for c in data if "法律" in c['category']]
-        count = sum(len(g['vocabulary']) for c in law for g in c['root_groups'])
-        ui_domain_page(law, f"法律術語區 ({count} 字)", "#FFD700", "#1A1A1A")
+        # 增加 Law/Legal 英文匹配
+        law = [c for c in data if any(k in str(c['category']) for k in ["法律", "Law", "Legal"])]
+        if law:
+            count = sum(len(g['vocabulary']) for c in law for g in c['root_groups'])
+            ui_domain_page(law, f"法律術語區 ({count} 字)", "#FFD700", "#1A1A1A")
+        else:
+            st.warning("找不到法律分類資料")
+            
     elif menu == "人工智慧區":
-        ai = [c for c in data if "人工智慧" in c['category'] or "AI" in c['category']]
-        count = sum(len(g['vocabulary']) for c in ai for g in c['root_groups'])
-        ui_domain_page(ai, f"AI 技術區 ({count} 字)", "#1565C0", "#E3F2FD")
+        ai = [c for c in data if any(k in str(c['category']) for k in ["人工智慧", "AI", "Tech"])]
+        if ai:
+            count = sum(len(g['vocabulary']) for c in ai for g in c['root_groups'])
+            ui_domain_page(ai, f"AI 技術區 ({count} 字)", "#1565C0", "#E3F2FD")
+        else:
+            st.info("目前無 AI 相關資料")
+            
     elif menu == "心理與社會區":
-        psy = [c for c in data if any(k in c['category'] for k in ["心理", "社會", "Psych", "Soc"])]
-        count = sum(len(g['vocabulary']) for c in psy for g in c['root_groups'])
-        ui_domain_page(psy, f"心理與社會科學 ({count} 字)", "#AD1457", "#FCE4EC") # 桃紅色系
+        # 增加 Psychology/Social 匹配
+        psy = [c for c in data if any(k in str(c['category']) for k in ["心理", "社會", "Psych", "Soc"])]
+        if psy:
+            count = sum(len(g['vocabulary']) for c in psy for g in c['root_groups'])
+            ui_domain_page(psy, f"心理與社會科學 ({count} 字)", "#AD1457", "#FCE4EC")
+        else:
+            st.info("目前無心理與社會相關資料")
+            
     elif menu == "生物與自然區":
-        bio = [c for c in data if any(k in c['category'] for k in ["生物", "自然", "科學", "Bio", "Sci"])]
-        count = sum(len(g['vocabulary']) for c in bio for g in c['root_groups'])
-        ui_domain_page(bio, f"生物與自然科學 ({count} 字)", "#2E7D32", "#E8F5E9") # 深綠色系
+        # 增加 Biology/Science/Nature 匹配
+        bio = [c for c in data if any(k in str(c['category']) for k in ["生物", "自然", "科學", "Bio", "Sci", "Nature"])]
+        if bio:
+            count = sum(len(g['vocabulary']) for c in bio for g in c['root_groups'])
+            ui_domain_page(bio, f"生物與自然科學 ({count} 字)", "#2E7D32", "#E8F5E9")
+        else:
+            st.info("目前無生物與自然相關資料")
+            
     elif menu == "管理區":
-    # 呼叫整合了 st.secrets 的管理頁面
         ui_admin_page(data)
 if __name__ == "__main__":
     main()
