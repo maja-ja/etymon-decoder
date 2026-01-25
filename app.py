@@ -175,34 +175,45 @@ def load_db():
             })
         structured_data.append({"category": str(cat_name), "root_groups": root_groups})
     return structured_data
-def ui_bg_music():
-    import datetime
-    
-    # 1. 取得目前小時 (24小時制)
-    now = datetime.datetime.now()
-    hr = now.hour
-    
-    # 2. 根據時間選擇音樂 (這裡使用 YouTube 的嵌入播放器，因為它在 iPhone 上最穩)
-    # 我們選擇 YouTube 上 24/7 直播的 Lofi 頻道
-    if 5 <= hr < 12:
-        mode, icon, vid = "晨間活力 Morning", "🌅", "https://www.youtube.com/embed/S_MOd40zlYU"
-    elif 12 <= hr < 18:
-        mode, icon, vid = "午後專注 Focus", "☕", "https://www.youtube.com/embed/jfKfPfyJRdk"
-    else:
-        mode, icon, vid = "深夜助眠 Sleep", "🌙", "https://www.youtube.com/embed/n61ULEU7FZ0"
+import datetime
 
-    # 3. 顯示音樂介面
-    with st.sidebar.expander(f"{icon} 背景音樂：{mode}", expanded=False):
-        st.markdown(f"""
-            <div style="text-align: center;">
-                <p style="font-size: 0.8rem; opacity: 0.8;">iPhone 使用者請點擊下方播放按鈕</p>
-                <iframe width="100%" height="150" 
-                    src="{vid}?autoplay=0&controls=1&loop=1" 
-                    frameborder="0" allow="autoplay; encrypted-media; picture-in-picture" 
-                    allowfullscreen>
-                </iframe>
-            </div>
-        """, unsafe_allow_html=True)
+def ui_time_based_lofi():
+    """根據目前時間自動切換 Lofi 音樂清單"""
+    now = datetime.datetime.now()
+    hour = now.hour
+
+    # 定義不同時段的 YouTube 播放清單 ID (這些是知名的 24/7 Lofi 頻道)
+    if 6 <= hour < 12:
+        # 早晨：清爽輕快
+        mode_name = "Morning Breeze"
+        playlist_id = "DWcJFNfaw9c" # Lofi Girl - morning
+        bg_color = "#FFF9C4"
+    elif 12 <= hour < 19:
+        # 下午：專注工作
+        mode_name = "Deep Focus Lofi"
+        playlist_id = "jfKfPfyJRdk" # Lofi Girl - hip hop radio
+        bg_color = "#E3F2FD"
+    else:
+        # 晚上/深夜：安靜助眠
+        mode_name = "Sleepy Night"
+        playlist_id = "rUxyKA_-grg" # Lofi Girl - sleepy beats
+        bg_color = "#1A237E"
+
+    with st.sidebar.expander(f"🎵 時光音樂盒: {mode_name}", expanded=False):
+        st.caption(f"目前時間: {hour}:00 ({mode_name} 模式)")
+        
+        # 使用 YouTube 嵌入語法，這是 iPhone 最相容的方案
+        embed_code = f"""
+            <iframe width="100%" height="180" 
+                src="https://www.youtube.com/embed/{playlist_id}?rel=0&modestbranding=1" 
+                frameborder="0" 
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                allowfullscreen>
+            </iframe>
+        """
+        st.markdown(embed_code, unsafe_allow_html=True)
+        st.info("💡 提示：點擊上方播放按鈕，iPhone 建議先點擊音樂再開始學習。")
+
 
 def save_feedback_to_gsheet(word, feedback_type, comment):
     try:
@@ -653,6 +664,11 @@ def main():
     data = load_db()
     
     st.sidebar.title("Etymon Decoder")
+    
+    # --- 加入這一行 ---
+    ui_time_based_lofi() 
+    
+    # 接下來是你原本的統計框、導航選單等等...
 
     # --- 第一區：統計與刷新 ---
     with st.sidebar.container():
