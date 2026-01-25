@@ -287,7 +287,7 @@ def ui_search_page(data, selected_cat):
                         st.markdown(f"**{v['word']}** [{v['breakdown']}]: {v['definition']}")
 
 def ui_admin_page(data):
-    st.title("🛡️ 管理區 (Cloud Admin)")
+    st.title("管制區")
     correct_password = st.secrets.get("admin_password", "8787")
     if not st.session_state.get('admin_auth'):
         pw_input = st.text_input("管理員密碼", type="password")
