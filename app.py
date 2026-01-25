@@ -12,28 +12,29 @@ from streamlit_gsheets import GSheetsConnection
 # 1. 修正語音發音 (確保有聲音且 autoplay)
 # ==========================================
 def speak(text):
-    """改良版發音邏輯"""
     try:
         tts = gTTS(text=text, lang='en')
         fp = BytesIO()
         tts.write_to_fp(fp)
         fp.seek(0)
         audio_base64 = base64.b64encode(fp.read()).decode()
-        import time
-        comp_id = int(time.time() * 1000)
         
+        # 使用隨機 ID 避免 Streamlit 元件快取
+        cid = f"aud_{int(time.time()*1000)}"
         audio_html = f"""
-            <audio autoplay id="aud_{comp_id}">
+            <audio autoplay id="{cid}">
                 <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
             </audio>
             <script>
-                var x = document.getElementById("aud_{comp_id}");
+                var x = document.getElementById("{cid}");
+                x.volume = 1.0;
                 x.play().catch(function(e) {{ console.log("Autoplay blocked"); }});
             </script>
             """
-        st.components.v1.html(audio_html, height=1)
+        # height=0 隱藏 HTML 元件空間
+        st.components.v1.html(audio_html, height=0)
     except Exception as e:
-        st.error(f"語音錯誤: {e}")
+        st.error(f"語音生成失敗: {e}")
 # ==========================================
 # 1. 核心配置與雲端同步
 # ==========================================
@@ -45,7 +46,6 @@ PENDING_FILE = 'pending_data.json'
 # 這是你要「寫入」回報的目標網址 (從 secrets 讀取)
 FEEDBACK_URL = st.secrets.get("feedback_sheet_url")
 
-@st.cache_data(ttl=600)
 @st.cache_data(ttl=600)
 def load_db():
     # 改為 9 欄一組的範圍
@@ -132,51 +132,38 @@ def get_stats(data):
 # ==========================================
 # 2. 通用與專業區域組件
 # ==========================================
-def ui_domain_page(domain_data, title, theme_color, bg_color):
-    st.title(title)
-    if not domain_data:
-        st.info("目前資料庫中尚未建立相關分類。")
-        return
+def render_word_card(v, title, theme_color):
+    display_color = "#FFD700" if "法律" in title else theme_color
+    
+    # 使用 st.container 增加間距
+    with st.container(border=True):
+        col_w, col_p, col_r = st.columns([3, 1, 1])
+        with col_w:
+            st.markdown(f'<div style="font-size: 1.8em; font-weight: bold; color: {display_color};">{v["word"]}</div>', unsafe_allow_html=True)
+            if v.get('phonetic'):
+                st.caption(f"/{v['phonetic']}/")
+        
+        with col_p:
+            if st.button("🔊 播放", key=f"btn_p_{v['word']}_{title}"):
+                speak(v['word'])
+        
+        with col_r:
+            ui_feedback_component(v['word'])
 
-    # 提取字根
-    root_map = {}
-    for cat in domain_data:
-        for group in cat.get('root_groups', []):
-            label = f"{'/'.join(group['roots'])} ({group['meaning']})"
-            if label not in root_map: root_map[label] = group
-    
-    selected_label = st.selectbox("選擇要複習的字根", sorted(root_map.keys()), key=title)
-    
-    if selected_label:
-        group = root_map[selected_label]
-        for v in group.get('vocabulary', []):
-            with st.container():
-                # 修改欄位比例，為回報按鈕留出空間
-                col_word, col_play, col_report = st.columns([3, 1, 1])
-                
-                with col_word:
-                    display_color = "#FFD700" if "法律" in title else theme_color
-                    st.markdown(f'<div style="font-size: 2.2em; font-weight: bold; color: {display_color};">{v["word"]}</div>', unsafe_allow_html=True)
-                
-                with col_play:
-                    if st.button("播放", key=f"v_{v['word']}_{title}"):
-                        speak(v['word'])
-                
-                with col_report:
-                    # 呼叫新建立的回報組件
-                    ui_feedback_component(v['word'])
-                
-                # 這裡針對拆解 (breakdown) 使用金色與深色背景框
-                st.markdown(f"""
-                    <div style="margin-bottom: 15px;">
-                        <span style="font-size: 1.1em; color: #888;">構造拆解：</span>
-                        <span style="font-size: 1.6em; color: #FFD700; font-family: 'Courier New', monospace; font-weight: bold; background: #888; padding: 4px 12px; border-radius: 8px; border: 1px solid #FFD700; text-shadow: 1px 1px 2px black;">
-                            {v['breakdown']}
-                        </span>
-                        <div style="font-size: 1.3em; color: #DDD; margin-top: 10px;"><b>中文定義：</b> {v['definition']}</div>
-                    </div>
-                    <hr style="border-color: #444;">
-                """, unsafe_allow_html=True)
+        # 拆解與定義區
+        st.markdown(f"""
+            <div style="margin-top: 10px; padding: 10px; background: rgba(100,100,100,0.1); border-radius: 8px;">
+                <span style="color: #888; font-size: 0.9em;">構造：</span>
+                <code style="color: #FFD700; font-size: 1.2em; font-weight: bold;">{v['breakdown']}</code>
+                <div style="margin-top: 5px;"><b>定義：</b> {v['definition']}</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        if v.get('example'):
+            with st.expander("查看例句"):
+                st.write(f"*{v['example']}*")
+                if v.get('translation'):
+                    st.caption(f"({v['translation']})")
 def ui_feedback_component(word):
     """單字錯誤回報彈窗"""
     with st.popover("錯誤回報"):
