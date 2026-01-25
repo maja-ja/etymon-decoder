@@ -462,13 +462,12 @@ def main():
                 # 判斷選單關鍵字是否在分類名稱中
                 if keyword in sub['name']:
                     found_any = True
-                    with st.expander(f"📂 {sub['name']} (來源：字母 {block['letter']} 區)"):
-                        for group in sub['root_groups']:
-                            st.success(f"**字根：** {' / '.join(group['roots'])} ({group['meaning']})")
-                            for v in group['vocabulary']:
-                                # 這裡使用您定義好的 render_word_card
-                                render_word_card(v, sub['name'], "#1E88E5")
-        
+                    st.subheader(f"📂 {sub['name']}")
+                    for group in sub['root_groups']:
+                        st.success(f"**字根：** {' / '.join(group['roots'])} ({group['meaning']})")
+                        for v in group['vocabulary']:
+                # --- 修正處：統一參數 ---
+                            render_word_card(v, theme_color="#1E88E5")
         if not found_any:
             st.info(f"目前在 A-Z 資料庫中，尚未發現標記為「{keyword}」的分類內容。")
 if __name__ == "__main__":
