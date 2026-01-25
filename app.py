@@ -68,35 +68,52 @@ def inject_custom_css():
 # 1. 修正語音發音 (改良為 HTML5 標籤)
 # ==========================================
 def speak(text):
-    """專為 iPhone PWA 設計：顯示微型播放器，確保 100% 有聲音"""
+    """
+    雙模播放機制：
+    1. 自動模式：嘗試 JavaScript 自動播放 (電腦/Android)
+    2. 備用模式：顯示 HTML5 控制項 (iPhone PWA 專用)
+    """
     try:
         from gtts import gTTS
         import base64
         from io import BytesIO
         import time
 
+        # 生成語音
         tts = gTTS(text=text, lang='en')
         fp = BytesIO()
         tts.write_to_fp(fp)
         fp.seek(0)
         audio_base64 = base64.b64encode(fp.read()).decode()
-        
-        # 加上時間戳記防止緩存
-        ts = int(time.time())
-        
-        # 這裡不使用 JavaScript，改用可見的 audio 標籤
-        # iPhone PWA 模式下，手動點擊此標籤的播放按鈕必成功
+        ts = int(time.time() * 1000)
+        audio_data = f"data:audio/mp3;base64,{audio_base64}"
+
+        # 1. 注入 JavaScript 嘗試自動播放 (電腦端體驗)
+        st.components.v1.html(f"""
+            <script>
+                var audio = new Audio("{audio_data}");
+                audio.play().catch(function(err) {{ 
+                    console.log("Autoplay blocked, user needs manual trigger"); 
+                }});
+            </script>
+        """, height=0)
+
+        # 2. 顯示備用播放器 (iPhone PWA 穩定方案)
         st.markdown(f"""
-            <div style="background: #f0f2f6; padding: 10px; border-radius: 10px; border: 1px solid #1E88E5; margin-top: 5px;">
-                <p style="margin:0 0 5px 0; font-size: 0.8rem; color: #1E88E5;">⬇️ 請點擊下方播放鍵 (iPhone 專用)</p>
-                <audio controls style="width: 100%; height: 35px;">
-                    <source src="data:audio/mp3;base64,{audio_base64}#t={ts}" type="audio/mp3">
+            <div style="background-color: var(--secondary-background-color); 
+                        padding: 8px 12px; border-radius: 10px; 
+                        border: 1px solid var(--primary-color); margin: 5px 0;">
+                <p style="margin:0 0 5px 0; font-size: 0.75rem; opacity: 0.8;">
+                    若無聲請點擊播放
+                </p>
+                <audio controls style="width: 100%; height: 30px;" playsinline>
+                    <source src="{audio_data}#t={ts}" type="audio/mp3">
                 </audio>
             </div>
         """, unsafe_allow_html=True)
         
     except Exception as e:
-        st.error(f"語音生成失敗: {e}")
+        st.error(f"語音錯誤: {e}")
 # ==========================================
 # 1. 核心配置與雲端同步 (保留原代碼)
 # ==========================================
