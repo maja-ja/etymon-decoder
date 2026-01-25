@@ -152,11 +152,7 @@ def get_stats(data):
 # ==========================================
 def ui_domain_page(domain_data, title, theme_color, bg_color):
     st.markdown(f'<h1 class="responsive-title">{title}</h1>', unsafe_allow_html=True)
-    if not domain_data:
-        st.info("目前資料庫中尚未建立相關分類。")
-        return
-
-    # 1. 整理字根選單數據
+    
     root_map = {}
     for cat in domain_data:
         for group in cat.get('root_groups', []):
@@ -165,45 +161,32 @@ def ui_domain_page(domain_data, title, theme_color, bg_color):
     
     options = sorted(root_map.keys())
 
-    # 2. 顯示按鈕式選單 (Pills)
-    # 刪除原本的 st.selectbox，僅保留此處
-    selected_label = st.pills(
-        "選擇要複習的字根", 
-        options, 
-        selection_mode="single", 
-        key=f"pills_{title}",
-        label_visibility="visible"
-    )
+    # 只保留 Pills 按鈕式選單，刪除 Selectbox
+    selected_label = st.pills("選擇字根", options, selection_mode="single", key=f"p_v_{title}")
     
-    # 3. 如果有選取，顯示單字內容
     if selected_label:
         group = root_map[selected_label]
         for v in group.get('vocabulary', []):
             with st.container():
-                col_word, col_btns = st.columns([3, 2])
-                with col_word:
-                    # 顏色跟隨分類主題或系統
-                    display_color = "#FFD700" if "法律" in title else theme_color
-                    st.markdown(f'<div class="responsive-word" style="font-weight:bold; color:{display_color};">{v["word"]}</div>', unsafe_allow_html=True)
+                # 加大顯示空間
+                st.markdown(f'<div class="responsive-word" style="font-weight:bold; color:var(--primary-color);">{v["word"]}</div>', unsafe_allow_html=True)
                 
-                with col_btns:
-                    # 語音與回報按鈕
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        if st.button("播放 🔊", key=f"play_{v['word']}_{title}"): speak(v['word'])
-                    with c2:
-                        ui_feedback_component(v['word'])
+                col_play, col_report, _ = st.columns([1, 1, 2])
+                with col_play:
+                    if st.button("播放", key=f"s_{v['word']}"): speak(v['word'])
+                with col_report:
+                    ui_feedback_component(v['word'])
                 
-                # 構造拆解
+                # 構造拆解與釋義 (大字版)
                 st.markdown(f"""
-                    <div style="margin-top: 10px;">
-                        <span style="color: var(--text-color); opacity: 0.7;">構造拆解：</span><br>
+                    <div style="margin-top: 20px;">
+                        <span class="responsive-text" style="opacity: 0.8;">構造拆解：</span><br>
                         <div class="breakdown-container responsive-breakdown">{v['breakdown']}</div>
-                        <div class="responsive-text" style="color: var(--text-color); margin-top: 10px;">
+                        <div class="responsive-text" style="margin-top: 15px;">
                             <b>中文定義：</b> {v['definition']}
                         </div>
                     </div>
-                    <hr style="border-color: rgba(128,128,128,0.2);">
+                    <hr style="margin: 30px 0; opacity: 0.2;">
                 """, unsafe_allow_html=True)
 def ui_feedback_component(word):
     with st.popover("錯誤回報"):
@@ -318,7 +301,7 @@ def ui_admin_page(data):
         flat = [{"category": c['category'], "roots": "/".join(g['roots']), "meaning": g['meaning'], **v} for c in data for g in c['root_groups'] for v in g['vocabulary']]
         st.download_button("確認下載 CSV", pd.DataFrame(flat).to_csv(index=False).encode('utf-8-sig'), "etymon_backup.csv")
     st.divider()
-    st.subheader("📝 雲端待處理回報")
+    st.subheader("雲端待處理回報")
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_pending = conn.read(spreadsheet=FEEDBACK_URL)
