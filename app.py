@@ -374,39 +374,48 @@ def main():
     # --- main() 內部的分頁邏輯修正 ---
 
 # --- 以下為各分頁呼叫邏輯 (完整修正版) ---
+# --- 導覽選單邏輯 (完整修正與防錯版) ---
+    
+    # 確保 data 存在，避免後續噴錯
+    if not data:
+        st.error("資料庫目前為空，請確認 Google Sheets 連結與格式是否正確。")
+        return
+
     if menu == "字根區":
-        # 確保分類選單排除 nan 與空值
-        cats = ["全部顯示"] + sorted(list(set(str(c['category']) for c in data if c['category'])))
+        # 排除空值並排序分類選單
+        available_cats = sorted(list(set(str(c['category']) for c in data if c.get('category'))))
+        cats = ["全部顯示"] + available_cats
         ui_search_page(data, st.sidebar.selectbox("分類篩選", cats))
         
     elif menu == "學習區":
         ui_quiz_page(data)
         
     elif menu == "高中 7000 區":
-        hs = [c for c in data if any(k in str(c['category']) for k in ["高中", "7000"])]
+        # 使用 str() 確保比對穩定，兼容中英文
+        hs = [c for c in data if any(k in str(c['category']) for k in ["高中", "7000", "High School"])]
         if hs:
             count = sum(len(g['vocabulary']) for c in hs for g in c['root_groups'])
             ui_domain_page(hs, f"高中核心區 ({count} 字)", "#2E7D32", "#E8F5E9")
         else:
-            st.info("目前無高中相關資料")
+            st.info("目前資料庫中尚無高中 7000 相關分類。")
             
     elif menu == "醫學區":
-        # 增加 Medicine 英文匹配
+        # 修正 NameError：先定義 med 變數並判斷是否存在
         med = [c for c in data if any(k in str(c['category']) for k in ["醫學", "Medicine", "Med"])]
         if med:
             count = sum(len(g['vocabulary']) for c in med for g in c['root_groups'])
             ui_domain_page(med, f"醫學專業區 ({count} 字)", "#C62828", "#FFEBEE")
         else:
-            st.warning("找不到醫學分類，請檢查試算表 Category 欄位")
+            st.warning("找不到『醫學』分類。請檢查試算表的 Category 欄位。")
             
     elif menu == "法律區":
-        # 增加 Law/Legal 英文匹配
+        # 修正 NameError：先定義 law 變數並判斷是否存在
         law = [c for c in data if any(k in str(c['category']) for k in ["法律", "Law", "Legal"])]
         if law:
             count = sum(len(g['vocabulary']) for c in law for g in c['root_groups'])
             ui_domain_page(law, f"法律術語區 ({count} 字)", "#FFD700", "#1A1A1A")
         else:
-            st.warning("找不到法律分類資料")
+            st.warning("找不到『法律』分類資料。")
             
     elif menu == "人工智慧區":
         ai = [c for c in data if any(k in str(c['category']) for k in ["人工智慧", "AI", "Tech"])]
@@ -414,25 +423,23 @@ def main():
             count = sum(len(g['vocabulary']) for c in ai for g in c['root_groups'])
             ui_domain_page(ai, f"AI 技術區 ({count} 字)", "#1565C0", "#E3F2FD")
         else:
-            st.info("目前無 AI 相關資料")
+            st.info("目前無 AI 相關分類資料。")
             
     elif menu == "心理與社會區":
-        # 增加 Psychology/Social 匹配
         psy = [c for c in data if any(k in str(c['category']) for k in ["心理", "社會", "Psych", "Soc"])]
         if psy:
             count = sum(len(g['vocabulary']) for c in psy for g in c['root_groups'])
             ui_domain_page(psy, f"心理與社會科學 ({count} 字)", "#AD1457", "#FCE4EC")
         else:
-            st.info("目前無心理與社會相關資料")
+            st.info("目前無心理與社會相關資料。")
             
     elif menu == "生物與自然區":
-        # 增加 Biology/Science/Nature 匹配
-        bio = [c for c in data if any(k in str(c['category']) for k in ["生物", "自然", "科學", "Bio", "Sci", "Nature"])]
+        bio = [c for c in data if any(k in str(c['category']) for k in ["生物", "自然", "科學", "Bio", "Sci"])]
         if bio:
             count = sum(len(g['vocabulary']) for c in bio for g in c['root_groups'])
             ui_domain_page(bio, f"生物與自然科學 ({count} 字)", "#2E7D32", "#E8F5E9")
         else:
-            st.info("目前無生物與自然相關資料")
+            st.info("目前無生物與自然相關資料。")
             
     elif menu == "管理區":
         ui_admin_page(data)
