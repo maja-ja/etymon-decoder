@@ -49,53 +49,68 @@ FEEDBACK_URL = st.secrets.get("feedback_sheet_url")
 
 @st.cache_data(ttl=600)
 @st.cache_data(ttl=600)
+@st.cache_data(ttl=600)
 def load_db():
-    # 根據截圖，每一組的起始欄位索引（0 開始計數）
-    # 第一組 A:I (0-8), 第二組 L:T (11-19) ...
+    # 1. 定義每一組資料的起始欄位索引 (0 開始計數)
+    # A=0, L=11, W=22, AH=33, AS=44 (每組 9 欄 + 2 欄間隔)
     START_COLS = [0, 11, 22, 33, 44] 
     
-    all_dfs = []
-    # 讀取完整工作表
     try:
+        # 直接讀取整張工作表
         raw_df = pd.read_csv(GSHEET_URL)
     except Exception as e:
-        st.error(f"讀取失敗: {e}")
+        st.error(f"讀取 Google Sheets 失敗: {e}")
         return []
 
+    all_dfs = []
     for start in START_COLS:
         try:
+            # 確保不會超出總欄位數
+            if start >= len(raw_df.columns):
+                continue
+                
             # 擷取該區段的 9 欄
             df_part = raw_df.iloc[:, start:start+9].copy()
             
-            # 給予統一欄位名稱
+            # 強制賦予正確的欄位名稱
             df_part.columns = [
                 'category', 'roots', 'meaning', 'word', 
                 'breakdown', 'definition', 'phonetic', 'example', 'translation'
             ]
             
-            # 關鍵修正：排除掉「標題重複行」與「空行」
-            df_part = df_part[df_part['category'] != 'category'] 
-            df_part = df_part.dropna(subset=['category', 'word'], how='all')
+            # 過濾無效行：
+            # 1. 移除空白行 (category 欄位為空)
+            # 2. 移除重複的標題行 (避免 category 欄位內容就叫做 "category")
+            df_part = df_part.dropna(subset=['category'])
+            df_part = df_part[df_part['category'].astype(str).str.lower() != 'category']
             
             all_dfs.append(df_part)
-        except:
+        except Exception:
             continue
 
-    if not all_dfs: return []
+    if not all_dfs:
+        return []
+
+    # 合併所有區段
     df = pd.concat(all_dfs, ignore_index=True)
     
-    # 結構化處理 (維持你原本的邏輯)
-    structured_data = []
-    # 確保資料型態為字串並移除空白
-    df = df.astype(str).apply(lambda x: x.str.strip())
+    # 清洗資料：去除前後空格，處理 NaN
+    df = df.apply(lambda x: x.astype(str).str.strip())
     
+    # 重新構建你程式需要的結構
+    structured_data = []
+    # 依照 category 分組
     for cat_name, cat_group in df.groupby('category'):
-        if cat_name == "nan": continue
+        if cat_name == "nan" or not cat_name:
+            continue
+            
         root_groups = []
+        # 在該分類下依照 roots 和 meaning 分組
         for (roots, meaning), group_df in cat_group.groupby(['roots', 'meaning']):
             vocabulary = []
             for _, row in group_df.iterrows():
-                if row['word'] == "nan": continue
+                if row['word'] == "nan":
+                    continue
                 vocabulary.append({
                     "word": row['word'],
                     "breakdown": row['breakdown'],
@@ -104,12 +119,17 @@ def load_db():
                     "example": row['example'] if row['example'] != "nan" else "",
                     "translation": row['translation'] if row['translation'] != "nan" else ""
                 })
-            root_groups.append({
-                "roots": [r.strip() for r in roots.split('/')],
-                "meaning": meaning,
-                "vocabulary": vocabulary
-            })
-        structured_data.append({"category": cat_name, "root_groups": root_groups})
+            
+            if vocabulary:
+                root_groups.append({
+                    "roots": [r.strip() for r in roots.split('/')],
+                    "meaning": meaning,
+                    "vocabulary": vocabulary
+                })
+        
+        if root_groups:
+            structured_data.append({"category": cat_name, "root_groups": root_groups})
+            
     return structured_data
 def save_feedback_to_gsheet(word, feedback_type, comment):
     try:
