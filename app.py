@@ -220,7 +220,16 @@ def ui_time_based_lofi():
         embed_code = f"""
             <div style="border-radius:12px; overflow:hidden; border: 1px solid #ddd; background: #000;">
                 <iframe width="100%" height="200" 
-                    src="https://www.youtube.com/embed/{video_id}?rel=0&modestbranding=1
+                    src="https://www.youtube.com/embed/{video_id}?rel=0&modestbranding=1&playsinline=1&autoplay=0" 
+                    frameborder="0" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                    allowfullscreen>
+                </iframe>
+            </div>
+        """
+        st.markdown(embed_code, unsafe_allow_html=True)
+        st.caption(f"目前處於 {icon} 時段。若顯示無法播放，請點擊影片標題開啟。")
+
 
 def save_feedback_to_gsheet(word, feedback_type, comment):
     try:
