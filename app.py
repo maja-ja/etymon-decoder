@@ -167,37 +167,21 @@ def get_stats(data):
 # 2. 通用與專業區域組件
 # ==========================================
 def render_word_card(v, title, theme_color):
-    display_color = "#FFD700" if "法律" in title else theme_color
-    
-    # 使用 st.container 增加間距
     with st.container(border=True):
-        col_w, col_p, col_r = st.columns([3, 1, 1])
+        col_w, col_p = st.columns([4, 1])
         with col_w:
-            st.markdown(f'<div style="font-size: 1.8em; font-weight: bold; color: {display_color};">{v["word"]}</div>', unsafe_allow_html=True)
-            if v.get('phonetic'):
-                st.caption(f"/{v['phonetic']}/")
-        
+            st.markdown(f'<div style="font-size: 1.5em; font-weight: bold; color: {theme_color};">{v["word"]}</div>', unsafe_allow_html=True)
+            if v.get('phonetic') and v['phonetic'] != "nan": st.caption(f"/{v['phonetic']}/")
         with col_p:
-            if st.button("🔊 播放", key=f"btn_p_{v['word']}_{title}"):
-                speak(v['word'])
+            if st.button("🔊", key=f"btn_{v['word']}_{title}"): speak(v['word'])
         
-        with col_r:
-            ui_feedback_component(v['word'])
+        st.markdown(f"**拆解：** `{v['breakdown']}`")
+        st.markdown(f"**定義：** {v['definition']}")
+        if v.get('example') and v['example'] != "nan":
+            with st.expander("例句"):
+                st.write(v['example'])
+                st.caption(f"({v.get('translation', '')})")
 
-        # 拆解與定義區
-        st.markdown(f"""
-            <div style="margin-top: 10px; padding: 10px; background: rgba(100,100,100,0.1); border-radius: 8px;">
-                <span style="color: #888; font-size: 0.9em;">構造：</span>
-                <code style="color: #FFD700; font-size: 1.2em; font-weight: bold;">{v['breakdown']}</code>
-                <div style="margin-top: 5px;"><b>定義：</b> {v['definition']}</div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        if v.get('example'):
-            with st.expander("查看例句"):
-                st.write(f"*{v['example']}*")
-                if v.get('translation'):
-                    st.caption(f"({v['translation']})")
 def ui_feedback_component(word):
     """單字錯誤回報彈窗"""
     with st.popover("錯誤回報"):
