@@ -238,7 +238,34 @@ def ui_feedback_component(word):
             else:
                 save_feedback_to_gsheet(word, f_type, f_comment)
                 st.success("感謝回報！")
+def ui_newbie_whiteboard():
+    st.markdown("""
+    ## 🚀 歡迎來到 Etymon Decoder！
+    這是一個讓你透過「拆解」來征服英文單字的工具。
+    
+    ### 1. 別再死背，要「看透」單字
+    英文單字就像樂高，由前綴、字根、後綴組成。
+    """)
+    
+    # 此處放置您的第一張圖片：展示單字拆解的概念
+    # st.image("your_image_url_1.png", caption="單字構造範例")
+    
+    st.markdown("""
+    ### 2. 如何開始你的第一步？
+    - **Step 1：** 在左側導航欄選擇你的目標（如：國小、高中）。
+    - **Step 2：** 在上方搜尋框輸入你感興趣的字根或中文意思。
+    - **Step 3：** 點開搜尋結果，觀察單字的「構造拆解」。
+    """)
+    
+    # 
 
+    st.markdown("""
+    ### 3. 進階學習：閃卡練習
+    當你瀏覽完一輪後，可以前往左側的 **[學習區]**。系統會隨機出題，測試你是否真的記住了單字的結構！
+    
+    ---
+    **小撇步：** 側邊欄往下滑有「分類篩選」，如果你不知道要搜什麼，可以先在那邊找找看！
+    """)
 def ui_quiz_page(data):
     st.markdown('<div class="responsive-title" style="font-weight:bold;">學習區 (Flashcards)</div>', unsafe_allow_html=True)
     cat_options_map = {"全部練習": "全部練習"}
@@ -313,18 +340,37 @@ def ui_quiz_page(data):
                 {example_html}
             </div>
         """, unsafe_allow_html=True)
-
 def ui_search_page(data, selected_cat):
-    st.title("搜尋與瀏覽")
+    # 任務 1: 在標題旁加入使用說明按鈕
+    col_title, col_help = st.columns([3, 1])
+    with col_title:
+        st.title("搜尋與瀏覽")
+    with col_help:
+        # 使用 popover 作為說明介面
+        with st.popover("📖 使用說明"):
+            ui_newbie_whiteboard() # 呼叫任務 3 的白板內容
+
     relevant = data if selected_cat == "全部顯示" else [c for c in data if c['category'] == selected_cat]
-    query = st.text_input("搜尋單字或字根...").strip().lower()
+    
+    # 任務 2: 保持乾淨的輸入框，移除所有重複的 Pills 按鈕
+    query = st.text_input("輸入字根 (如: bio) 或 中文含義 (如: 生命)...", placeholder="請輸入關鍵字...").strip().lower()
+    
+    if not query:
+        # 任務 3: 如果使用者還沒搜尋，顯示引導白板
+        st.info("💡 提示：側邊欄下方有「分類篩選」，可以先選擇感興趣的領域後再搜尋。")
+        ui_newbie_whiteboard()
+        return
+
+    # 執行搜尋邏輯
     for cat in relevant:
         for group in cat.get('root_groups', []):
             matched = [v for v in group['vocabulary'] if query in v['word'].lower() or any(query in r.lower() for r in group['roots'])]
             if matched:
-                with st.expander(f"{'/'.join(group['roots'])} ({group['meaning']})", expanded=bool(query)):
+                with st.expander(f"✨ {cat['category']} | {'/'.join(group['roots'])} ({group['meaning']})", expanded=True):
                     for v in matched:
-                        st.markdown(f"**{v['word']}** [{v['breakdown']}]: {v['definition']}")
+                        st.markdown(f"**{v['word']}** `{v['breakdown']}`: {v['definition']}")
+                        if st.button("播放發音", key=f"btn_{v['word']}"):
+                            speak(v['word'])
 
 def ui_admin_page(data):
     st.title("管制區")
@@ -364,6 +410,8 @@ def main():
     st.sidebar.title("Etymon Decoder")
     menu = st.sidebar.radio("導航", ["字根區", "學習區", "國小區", "國中區", "高中區", "醫學區", "法律區", "人工智慧區", "心理與社會區", "生物與自然區", "管理區"], key="main_navigation")
     st.sidebar.divider()
+    with st.sidebar.popover("📖 使用說明", use_container_width=True):
+        st.markdown()
     if st.sidebar.button("強制刷新雲端數據", use_container_width=True): 
         st.cache_data.clear()
         st.rerun()
