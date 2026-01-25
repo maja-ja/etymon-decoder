@@ -39,7 +39,7 @@ def speak(text):
 # ==========================================
 
 # 這是你原本「唯讀」的單字庫資料來源
-SHEET_ID = '1W1ADPyf5gtGdpIEwkxBEsaJ0bksYldf4AugoXnq6Zvg'
+SHEET_ID = '1Gs0FX7c8bUQTnSytX1EqjMLATeVc30GmdjSOYW_sYsQ'
 GSHEET_URL = f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv'
 PENDING_FILE = 'pending_data.json'
 # 這是你要「寫入」回報的目標網址 (從 secrets 讀取)
