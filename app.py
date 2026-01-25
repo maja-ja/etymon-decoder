@@ -385,38 +385,48 @@ def main():
         st.rerun()
     
     # 4. 在刷新按鈕下方顯示單字總量 (使用大字體樣式)
-    _, total_words = get_stats(data)
-    st.sidebar.markdown(f"""
-        <div style="text-align: center; padding: 10px; background-color: #f0f2f6; border-radius: 10px; margin-top: 10px;">
-            <p style="margin: 0; font-size: 0.9em; color: #000;">資料庫總計</p>
-            <p style="margin: 0; font-size: 1.8em; font-weight: bold; color: #000;">{total_words} <span style="font-size: 0.5em;">Words</span></p>
-        </div>
-    """, unsafe_allow_html=True)
-# 在 main() 開頭計算總字數
-    total_count = 0
+   def main():
+    data = load_db()
+    
+    # --- 核心修正：計算所有嵌套結構中的單字總數 ---
+    total_words = 0
     for block in data:
         for sub in block['sub_categories']:
             for group in sub['root_groups']:
-                total_count += len(group['vocabulary'])
-
-    # 更新側邊欄顯示 (取代原本的 0 Words)
-    st.sidebar.metric("資料庫總計", f"{total_count} Words")
+                total_words += len(group['vocabulary'])
+    
+    # 顯示在側邊欄，確保上方那個 0 消失
+    st.sidebar.metric("資料庫總計", f"{total_words} Words")
 
     if menu == "字根區":
         st.title("🗂️ 字根總覽 (A-Z 大區)")
         
-        if total_count == 0:
-            st.error("❌ 讀取不到單字。請確認試算表 A、D、O 欄等 Word 欄位是否有填寫內容。")
+        if not data:
+            st.error("目前讀取不到任何區塊資料，請確認 Google Sheets 格式。")
             return
 
         for block in data:
-            with st.expander(f"✨ 字母區塊：{block['letter']}"):
+            # 統計該字母區塊內的單字數
+            block_word_count = sum(len(g['vocabulary']) for s in block['sub_categories'] for g in s['root_groups'])
+            
+            with st.expander(f"✨ 字母區塊：{block['letter']} ({block_word_count} 字)"):
                 for sub in block['sub_categories']:
                     st.markdown(f"#### 📂 分類：{sub['name']}")
                     for group in sub['root_groups']:
+                        # 顯示字根與意義
                         st.info(f"**字根：** {' / '.join(group['roots'])} ({group['meaning']})")
-                        # 顯示單字表格
-                        display_df = [{"單字": v['word'], "解釋": v['definition'], "翻譯": v['translation']} for v in group['vocabulary']]
-                        st.table(display_df)
+                        
+                        # 將單字清單轉成 DataFrame 顯示
+                        display_df = []
+                        for v in group['vocabulary']:
+                            display_df.append({
+                                "單字": v['word'],
+                                "拆解": v['breakdown'],
+                                "解釋": v['definition'],
+                                "翻譯": v['translation']
+                            })
+                        if display_df:
+                            st.table(display_df)
+                    st.divider()
 if __name__ == "__main__":
     main()
