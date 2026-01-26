@@ -365,7 +365,7 @@ def ui_quiz_page(data, selected_cat_from_sidebar):
         st.warning("👈 **請先從左側「分類篩選」選擇一個領域來開始！**")
         return
 
-    # 1. 建立該領域的題目池
+    # 建立題目池
     if selected_cat_from_sidebar == "全部顯示":
         pool = [{**v, "cat": c['category']} for c in data for g in c['root_groups'] for v in g['vocabulary']]
     else:
@@ -375,24 +375,30 @@ def ui_quiz_page(data, selected_cat_from_sidebar):
         st.error("此範圍無資料，請檢查資料庫。")
         return
 
-    # 2. 題型選擇 (使用 st.pills)
-    quiz_mode = st.pills("選擇挑戰模式", ["隨機字卡", "四選一測驗", "克漏字挑戰"], index=0)
+    # --- 修正處：改用 radio 確保相容性 ---
+    quiz_mode = st.radio(
+        "選擇挑戰模式", 
+        ["隨機字卡", "四選一測驗", "克漏字挑戰"], 
+        index=0, 
+        horizontal=True
+    )
+    # ---------------------------------
     
-    # 初始化「是否已閱讀原理」的狀態
-    if f"intro_done_{quiz_mode}" not in st.session_state:
-        st.session_state[f"intro_done_{quiz_mode}"] = False
+    # 接下來的 intro 邏輯保持不變
+    intro_key = f"intro_done_{quiz_mode}"
+    if intro_key not in st.session_state:
+        st.session_state[intro_key] = False
 
-    # 2. 原理介紹頁面 (如果還沒點 Got it!)
-    if not st.session_state[f"intro_done_{quiz_mode}"]:
+    if not st.session_state[intro_key]:
         render_mode_introduction(quiz_mode)
         if st.button("Got it! 進入挑戰", use_container_width=True, type="primary"):
-            st.session_state[f"intro_done_{quiz_mode}"] = True
+            st.session_state[intro_key] = True
             st.rerun()
-        return # 攔截，不往下執行測驗
+        return 
 
     st.divider()
 
-    # 3. 路由到對應的測驗函數
+    # 路由到對應測驗
     if quiz_mode == "隨機字卡":
         render_flashcard_mode(pool)
     elif quiz_mode == "四選一測驗":
@@ -582,13 +588,13 @@ def ui_search_page_all_list(data, selected_cat):
     # 搜尋框
     query = st.text_input("在選定領域中搜尋...", placeholder="輸入關鍵字如：act, bio...", key="root_search_bar").strip().lower()
 
-    # --- 新增：隨機字卡區域 (當沒有搜尋動作時顯示) ---
+    # --- 新增：隨機字卡區域 (僅在沒搜尋時顯示) ---
     if not query:
         st.markdown("### 🎲 每日隨機推薦")
         all_words = [{**v, "cat": c['category']} for c in data for g in c['root_groups'] for v in g['vocabulary']]
         if all_words:
-            random_word = random.choice(all_words)
-            # 使用自適應容器包裹
+            q = random.choice(all_words)
+            # 使用您的 CSS 變數確保自適應與變色
             st.markdown(f"""
                 <div style="
                     background: var(--secondary-background-color);
@@ -599,19 +605,31 @@ def ui_search_page_all_list(data, selected_cat):
                     margin-bottom: 2rem;
                     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
                 ">
-                    <div style="font-size: 0.9rem; opacity: 0.7;">[{random_word['cat']}]</div>
-                    <div class="responsive-word" style="color: var(--primary-color); margin: 10px 0;">{random_word['word']}</div>
-                    <div class="responsive-text" style="font-weight: bold;">{random_word['definition']}</div>
+                    <div style="font-size: 0.9rem; opacity: 0.7; color: var(--text-color);">[ {q['cat']} ]</div>
+                    <div class="responsive-word" style="color: var(--primary-color); margin: 15px 0; font-weight:800;">{q['word']}</div>
+                    <div style="margin-bottom: 15px;">
+                        <span class="breakdown-container" style="font-size: 1.2rem; padding: 5px 15px;">{q['breakdown']}</span>
+                    </div>
+                    <div class="responsive-text" style="font-weight: bold; color: var(--text-color);">{q['definition']}</div>
                 </div>
             """, unsafe_allow_html=True)
-            if st.button("🔊 播放這個單字"):
-                speak(random_word['word'])
+            
+            col_play, col_next = st.columns([1, 1])
+            with col_play:
+                if st.button("🔊 播放發音", use_container_width=True):
+                    speak(q['word'])
+            with col_next:
+                if st.button("🔄 換一張卡", use_container_width=True):
+                    st.rerun()
         st.divider()
     # -------------------------------------------
 
     if selected_cat == "請選擇領域":
         st.info("💡 請從左側側邊欄選擇分類以查看完整列表。")
+        ui_newbie_whiteboard() # 顯示原本的白板教學
         return
+
+    # 後續原本的搜尋過濾邏輯...
 
     # 滿足條件：執行過濾並「全部列出」
     # 如果 query 為空，matched_vocab 就會包含該分類下的所有內容
