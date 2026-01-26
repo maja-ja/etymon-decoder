@@ -515,7 +515,7 @@ def render_multiple_choice_mode(pool):
         if st.button("播放讀音", key="mc_audio"):
             speak(q['target']['word'])
         
-        if st.button("下一題 ➡️", type="primary"):
+        if st.button("下一題 ➡️"):
             st.session_state.mc_q_data = None
             st.rerun()
 def render_cloze_test_mode(pool):
@@ -558,7 +558,7 @@ def render_cloze_test_mode(pool):
         if st.button("播放讀音", key="audio_cloze"):
             speak(q['target']['word'])
             
-        if st.button("下一題 ➡️", type="primary"):
+        if st.button("下一題 ➡️"):
             st.session_state.cloze_q = None
             st.rerun()
 def ui_search_page(data, selected_cat):
