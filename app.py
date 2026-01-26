@@ -386,20 +386,19 @@ def render_search_hero_card(all_words):
     if st.button("🔊 聽看看", key="hero_audio"):
         speak(q['word'])
 def ui_quiz_page(data, selected_cat_from_sidebar):
-    # 1. 偵測領域變動
-    if "last_selected_cat" not in st.session_state:
-        st.session_state.last_selected_cat = selected_cat_from_sidebar
+    # 建立一個變數來追蹤領域狀態
+    if "active_category" not in st.session_state:
+        st.session_state.active_category = selected_cat_from_sidebar
 
-    # 如果領域改變了，立刻清理題目快取
-    if st.session_state.last_selected_cat != selected_cat_from_sidebar:
-        # 清理所有測驗模式的題目暫存
-        state_keys = ['mc_q', 'cloze_q', 'flash_idx', 'flipped']
-        for key in state_keys:
+    # 核心邏輯：如果當前選擇的領域與紀錄的不同，就清空題目
+    if st.session_state.active_category != selected_cat_from_sidebar:
+        # 清除所有測驗模式的題目快取
+        for key in ['cloze_q', 'mc_q', 'flash_idx']:
             if key in st.session_state:
                 del st.session_state[key]
         
-        # 同步目前的領域紀錄
-        st.session_state.last_selected_cat = selected_cat_from_sidebar
+        # 更新紀錄並強制刷新
+        st.session_state.active_category = selected_cat_from_sidebar
         st.rerun()
     # ---------------------------
 
