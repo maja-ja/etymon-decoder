@@ -620,7 +620,6 @@ def render_cloze_test_mode(pool):
     if q['answered']:
         if q['user_choice'] == q['target']['word']:
             st.success(f"太棒了！正確答案是 **{q['target']['word']}**")
-            speak(q['target']['word']) # <--- 自動發音
         else:
             st.error(f"答錯了，正確單字應為：**{q['target']['word']}**")
     
