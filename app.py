@@ -405,7 +405,7 @@ def ui_quiz_page(data, selected_cat_from_sidebar):
     if "current_mode_idx" not in st.session_state:
         st.session_state.current_mode_idx = 0
 
-    st.markdown('<h2 class="responsive-title">測驗中心</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="responsive-title">🎯 測驗中心</h2>', unsafe_allow_html=True)
 
     # 使用 radio 並連動 session_state
     quiz_mode = st.radio(
@@ -418,30 +418,6 @@ def ui_quiz_page(data, selected_cat_from_sidebar):
     
     # 當使用者點擊 radio 切換時，同步更新 index 紀錄
     st.session_state.current_mode_idx = modes.index(quiz_mode)
-    if selected_cat_from_sidebar == "請選擇領域":
-        st.warning("👈 **請先從左側「分類篩選」選擇一個領域來開始！**")
-        return
-
-    # 建立題目池
-    if selected_cat_from_sidebar == "全部顯示":
-        pool = [{**v, "cat": c['category']} for c in data for g in c['root_groups'] for v in g['vocabulary']]
-    else:
-        pool = [{**v, "cat": c['category']} for c in data if c['category'] == selected_cat_from_sidebar for g in c['root_groups'] for v in g['vocabulary']]
-    
-    if not pool:
-        st.error("此範圍無資料，請檢查資料庫。")
-        return
-
-    # --- 修正處：改用 radio 確保相容性 ---
-    quiz_mode = st.radio(
-        "選擇挑戰模式", 
-        ["隨機字卡", "四選一測驗", "克漏字挑戰"], 
-        index=0, 
-        horizontal=True
-    )
-    # ---------------------------------
-    
-    # 接下來的 intro 邏輯保持不變
 
     intro_key = f"intro_done_{quiz_mode}"
     if intro_key not in st.session_state:
@@ -573,45 +549,40 @@ def render_multiple_choice_mode(pool):
             st.rerun()
 
 def render_cloze_test_mode(pool):
-    # 1. 基礎檢查：過濾出有例句且包含單字本身的資料
+    # 確保 pool 有資料
     pool_with_ex = [
         x for x in pool 
         if x.get('example') and str(x['example']) != 'nan' 
         and x['word'].lower() in x['example'].lower()
     ]
     
-    if len(pool_with_ex) < 3:
-        st.warning("此分類的例句不足（至少需要 3 個帶例句的單字）來產生三選一測驗。")
+    if not pool_with_ex:
+        st.warning("⚠️ 此分類目前沒有足夠的例句題型。")
         return
 
-    # 2. 核心初始化邏輯 (確保 q 一定存在)
+    # 關鍵：如果 cloze_q 是 None 或不在 state 中，就一定要重新抽題
     if 'cloze_q' not in st.session_state or st.session_state.cloze_q is None:
         target = random.choice(pool_with_ex)
         
-        # 挖空處理：使用正則表達式進行不分大小寫替換
+        # 挖空邏輯
         import re
         pattern = re.compile(re.escape(target['word']), re.IGNORECASE)
         display_ex = pattern.sub(" ________ ", target['example'])
         
-        # 抽取干擾項：從整個 pool 抽單字，確保選項有 3 個
-        possible_distractors = [x['word'] for x in pool if x['word'].lower() != target['word'].lower()]
-        distractors = random.sample(possible_distractors, min(2, len(possible_distractors)))
-        
+        # 建立選項 (3 選 1)
+        distractors = random.sample([x['word'] for x in pool if x['word'] != target['word']], 2)
         options = distractors + [target['word']]
         random.shuffle(options)
         
-        # 存入 Session State
         st.session_state.cloze_q = {
             "target": target,
             "display": display_ex,
             "options": options,
-            "answered": False,
-            "user_choice": None
+            "answered": False
         }
 
-    # 獲取當前題目資料
     q = st.session_state.cloze_q
-
+    # ... (顯示 UI 邏輯)
     # 3. 顯示介面
     st.info("**請根據中文翻譯，選出最適合填入空格的單字：**")
     st.markdown(f"""
