@@ -391,7 +391,7 @@ def ui_quiz_page(data, selected_cat_from_sidebar):
 
     if not st.session_state[intro_key]:
         render_mode_introduction(quiz_mode)
-        if st.button("Got it! 進入挑戰", use_container_width=True, type="primary"):
+        if st.button("Got it! 進入挑戰", use_container_width=True):
             st.session_state[intro_key] = True
             st.rerun()
         return 
@@ -456,29 +456,56 @@ def render_flashcard_mode(pool):
         st.info(f"💡 **定義：** {q['definition']} \n\n 🏗️ **拆解：** `{q['breakdown']}`")
 
 def render_multiple_choice_mode(pool):
+    # 確保 session 狀態初始化
     if 'mc_q' not in st.session_state:
         target = random.choice(pool)
-        # 隨機選3個錯誤定義
-        distractors = random.sample([x['definition'] for x in pool if x['word'] != target['word']], min(3, len(pool)-1))
+        
+        # 從 pool 中找出除了正確答案以外的所有定義作為干擾項
+        all_distractors = [x['definition'] for x in pool if x['word'] != target['word']]
+        
+        # 如果干擾項不足 3 個，就從所有資料中抓（確保測驗能進行）
+        if len(all_distractors) < 3:
+            # 這裡可以考慮傳入整個 data 或者是給定預設錯誤選項
+            distractors = random.sample(all_distractors, len(all_distractors))
+        else:
+            distractors = random.sample(all_distractors, 3)
+            
         options = distractors + [target['definition']]
         random.shuffle(options)
-        st.session_state.mc_q = {"target": target, "options": options, "answered": False}
+        
+        st.session_state.mc_q = {
+            "target": target, 
+            "options": options, 
+            "answered": False,
+            "user_choice": None
+        }
 
     q_data = st.session_state.mc_q
-    st.subheader(f"單字： {q_data['target']['word']}")
+    st.markdown(f"### 請選出 **{q_data['target']['word']}** 的正確含義：")
     
+    # 顯示選項按鈕
     for opt in q_data['options']:
-        if st.button(opt, use_container_width=True):
-            if opt == q_data['target']['definition']:
-                st.success("🎉 正確！")
-                speak(q_data['target']['word'])
-            else:
-                st.error(f"❌ 答錯了，正確答案是：{q_data['target']['definition']}")
+        # 如果已經回答過，按鈕變為不可按或顯示顏色
+        disabled = q_data['answered']
+        if st.button(opt, use_container_width=True, disabled=disabled, key=f"btn_{opt}"):
             st.session_state.mc_q['answered'] = True
+            st.session_state.mc_q['user_choice'] = opt
+            st.rerun()
 
-    if st.button("下一題"):
-        del st.session_state.mc_q
-        st.rerun()
+    # 顯示結果
+    if q_data['answered']:
+        if q_data['user_choice'] == q_data['target']['definition']:
+            st.success(f"🎉 正確！ {q_data['target']['word']} 就是「{q_data['target']['definition']}」")
+            speak(q_data['target']['word'])
+        else:
+            st.error(f"❌ 答錯了，正確答案是：{q_data['target']['definition']}")
+        
+        # 拆解詳解
+        st.info(f"🏗️ **構造拆解：** `{q_data['target']['breakdown']}`")
+        
+        if st.button("下一題 ➡️", type="primary"):
+            del st.session_state.mc_q
+            st.rerun()
 
 def render_cloze_test_mode(pool):
     # 過濾出有例句的單字
