@@ -625,9 +625,14 @@ def render_cloze_test_mode(pool):
             st.error(f"答錯了，正確單字應為：**{q['target']['word']}**")
     
     # 在詳解卡片上方加一個「手動播放」按鈕，方便使用者重複聽
-    if st.button(f"🔊", key="replay_btn"):
-        speak(q['target']['word'])
-        # 顯示單字詳解卡片
+    # 只負責發聲的按鈕
+    if q['answered']:
+        # 使用 columns 讓按鈕不要佔滿整行，看起來更精緻
+        btn_col, _ = st.columns([1, 2])
+        with btn_col:
+            if st.button(f"🔊 播放發音", key="replay_audio"):
+                speak(q['target']['word'])
+            # 這裡不放 st.rerun()，確保只觸發 speak 內的 JS
         st.markdown(f"""
             <div style="background: rgba(128,128,128,0.1); padding: 15px; border-radius: 10px; border: 1px solid rgba(128,128,128,0.2);">
                 <b style="color: var(--primary-color); font-size: 1.2rem;">{q['target']['word']}</b> {q['target'].get('phonetic', '')}<br>
