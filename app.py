@@ -386,24 +386,38 @@ def render_search_hero_card(all_words):
     if st.button("🔊 聽看看", key="hero_audio"):
         speak(q['word'])
 def ui_quiz_page(data, selected_cat_from_sidebar):
-    # 建立一個變數來追蹤領域狀態
+    # --- 1. 領域變動監控 (確保題目會換) ---
     if "active_category" not in st.session_state:
         st.session_state.active_category = selected_cat_from_sidebar
 
-    # 核心邏輯：如果當前選擇的領域與紀錄的不同，就清空題目
     if st.session_state.active_category != selected_cat_from_sidebar:
-        # 清除所有測驗模式的題目快取
-        for key in ['cloze_q', 'mc_q', 'flash_idx']:
+        # 清除題目，但保留 quiz_mode 讓使用者不用重新選模式
+        for key in ['cloze_q', 'mc_q', 'flash_idx', 'flipped']:
             if key in st.session_state:
-                del st.session_state[key]
-        
-        # 更新紀錄並強制刷新
+                st.session_state[key] = None # 使用 None 比 del 更穩定
         st.session_state.active_category = selected_cat_from_sidebar
         st.rerun()
-    # ---------------------------
 
-    st.markdown('<h2 class="responsive-title"> 測驗中心</h2>', unsafe_allow_html=True)
+    # --- 2. 模式記憶邏輯 (解決回到字卡的問題) ---
+    modes = ["隨機字卡", "四選一測驗", "克漏字挑戰"]
+    
+    # 檢查 session 中是否有紀錄模式，若無則預設為 0
+    if "current_mode_idx" not in st.session_state:
+        st.session_state.current_mode_idx = 0
 
+    st.markdown('<h2 class="responsive-title">測驗中心</h2>', unsafe_allow_html=True)
+
+    # 使用 radio 並連動 session_state
+    quiz_mode = st.radio(
+        "選擇挑戰模式", 
+        modes, 
+        index=st.session_state.current_mode_idx, 
+        horizontal=True,
+        key="mode_selector" # 加上固定 key
+    )
+    
+    # 當使用者點擊 radio 切換時，同步更新 index 紀錄
+    st.session_state.current_mode_idx = modes.index(quiz_mode)
     if selected_cat_from_sidebar == "請選擇領域":
         st.warning("👈 **請先從左側「分類篩選」選擇一個領域來開始！**")
         return
