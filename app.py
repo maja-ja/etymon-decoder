@@ -406,28 +406,28 @@ def ui_quiz_page(data, selected_cat_from_sidebar):
     elif quiz_mode == "克漏字挑戰":
         render_cloze_test_mode(pool)
 def render_mode_introduction(mode):
+    """題型開始前的原理介紹頁面 (清楚文字版)"""
     if mode == "隨機字卡":
         st.markdown("""
-            ### 🧠 隨機字卡：主動回想原理 (Active Recall)
-            - **學習法：** 看到單字時，大腦先搜尋記憶，再翻開答案確認。
-            - **重點：** 不要急著翻面！先在腦中拆解該單字的「前綴 + 字根」。
-            - **效果：** 強化神經連結，比單純閱讀清單有效 3 倍。
+            ### 🎴 隨機字卡：建立初步印象
+            - **出題邏輯：** 從你選的領域中，隨機抽出單字正面。
+            - **怎麼練習：** 看到單字時「先別翻面」，試著在大腦拆解它的字根。
+            - **學習目標：** 訓練「主動回想」，讓大腦對字根結構產生直覺反應。
         """)
     elif mode == "四選一測驗":
         st.markdown("""
-            ### 🔍 四選一：語義辨析原理 (Discrimination)
-            - **學習法：** 從相似的定義中找出正確的一個。
-            - **重點：** 觀察選項間的細微差別，結合字根含義進行排除。
-            - **效果：** 訓練大腦在模糊資訊中精準定位正確定義。
+            ### 🎯 四選一：精準定義辨析
+            - **出題邏輯：** 單字對應四個中文定義（1個正確 + 3個隨機干擾項）。
+            - **怎麼練習：** 找出最符合該單字「拆解含義」的中文解釋。
+            - **學習目標：** 訓練大腦在多個相似選項中，透過字根精準判斷語義。
         """)
     elif mode == "克漏字挑戰":
         st.markdown("""
-            ### ✍️ 克漏字：情境應用原理 (Contextual Learning)
-            - **學習法：** 根據上下文語境，將正確的積木（單字）填入。
-            - **重點：** 理解例句的結構，判斷該詞彙在真實對話中的用法。
-            - **效果：** 讓單字不再是孤立的單詞，而是會使用的「溝通工具」。
+            ### 📝 克漏字：情境應用練習
+            - **出題邏輯：** 挖空例句中的單字，並提供 3 個選項。
+            - **怎麼練習：** 閱讀英文例句與中文翻譯，根據語境選出正確單字。
+            - **學習目標：** 讓單字回歸到句子中，理解如何將學到的單字「用出來」。
         """)
-
 def render_flashcard_mode(pool):
     if 'flash_idx' not in st.session_state:
         st.session_state.flash_idx = random.randint(0, len(pool)-1)
@@ -508,34 +508,70 @@ def render_multiple_choice_mode(pool):
             st.rerun()
 
 def render_cloze_test_mode(pool):
-    # 過濾出有例句的單字
-    pool_with_ex = [x for x in pool if x['example'] and str(x['example']) != 'nan']
-    if not pool_with_ex:
-        st.warning("此分類目前沒有足夠的例句。")
+    # 1. 準備題目 (過濾出有例句的單字)
+    pool_with_ex = [x for x in pool if x['example'] and str(x['example']) != 'nan' and x['word'] in x['example']]
+    
+    if len(pool_with_ex) < 3:
+        st.warning("此分類的例句不足以產生三選一測驗 (至少需要 3 個帶例句的單字)。")
         return
 
+    # 2. 初始化題目
     if 'cloze_q' not in st.session_state:
-        q = random.choice(pool_with_ex)
-        # 將例句中的單字替換為底線 (忽略大小寫)
-        display_ex = q['example'].replace(q['word'], " _______ ")
-        st.session_state.cloze_q = {"target": q, "display": display_ex}
+        target = random.choice(pool_with_ex)
+        
+        # 挖空處理 (不分大小寫替換)
+        import re
+        pattern = re.compile(re.escape(target['word']), re.IGNORECASE)
+        display_ex = pattern.sub(" ________ ", target['example'])
+        
+        # 抽取 2 個錯誤選項 (干擾項)
+        distractors = random.sample([x['word'] for x in pool if x['word'] != target['word']], 2)
+        options = distractors + [target['word']]
+        random.shuffle(options)
+        
+        st.session_state.cloze_q = {
+            "target": target,
+            "display": display_ex,
+            "options": options,
+            "answered": False
+        }
 
-    q_data = st.session_state.cloze_q
-    st.markdown(f"### 填空：\n> {q_data['display']}")
-    st.caption(f"中文翻譯：{q_data['target']['translation']}")
-
-    ans = st.text_input("輸入缺少的單字：").strip().lower()
-    if st.button("提交答案"):
-        if ans == q_data['target']['word'].lower():
-            st.success(f"太棒了！正確答案是 {q_data['target']['word']}")
-            speak(q_data['target']['word'])
-        else:
-            st.error(f"差一點點！答案應該是：{q_data['target']['word']}")
-
-    if st.button("下一題 "):
-        del st.session_state.cloze_q
-        st.rerun()
+    q = st.session_state.cloze_q
     
+    # 3. 顯示介面
+    st.info(f"🔍 **請根據中文翻譯，選出最適合填入空格的單字：**")
+    st.markdown(f"""
+        <div style="background: var(--secondary-background-color); padding: 20px; border-radius: 10px; border-left: 5px solid var(--primary-color); margin-bottom: 10px;">
+            <p style="font-size: 1.3rem; line-height: 1.6;">{q['display']}</p>
+            <p style="opacity: 0.8; font-style: italic;">👉 {q['target']['translation']}</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # 4. 選項按鈕
+    for opt in q['options']:
+        if st.button(opt, use_container_width=True, disabled=q['answered'], key=f"cloze_{opt}"):
+            q['answered'] = True
+            if opt == q['target']['word']:
+                st.success(f"🎉 太棒了！單字是 **{opt}**")
+                speak(opt)
+            else:
+                st.error(f"❌ 答錯了，正確單字應為：**{q['target']['word']}**")
+            st.rerun()
+
+    # 5. 回答後的補充資訊
+    if q['answered']:
+        st.markdown(f"""
+            <div style="background: rgba(128,128,128,0.1); padding: 15px; border-radius: 10px;">
+                <b>💡 單字解析：</b><br>
+                <b>{q['target']['word']}</b> ({q['target']['phonetic']})<br>
+                定義：{q['target']['definition']}<br>
+                構造：<code>{q['target']['breakdown']}</code>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        if st.button("下一題 ➡️",use_container_width=True):
+            del st.session_state.cloze_q
+            st.rerun()
 def ui_search_page(data, selected_cat):
     # --- 任務 1：標題與教學按鈕 ---
     col_title, col_help = st.columns([3, 1])
