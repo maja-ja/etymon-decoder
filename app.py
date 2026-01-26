@@ -386,54 +386,45 @@ def render_search_hero_card(all_words):
     if st.button("🔊 聽看看", key="hero_audio"):
         speak(q['word'])
 def ui_quiz_page(data, selected_cat_from_sidebar):
-    # --- A. 領域變動監控：一旦切換領域，立刻清空所有題目快取 ---
-    if "active_category" not in st.session_state:
-        st.session_state.active_category = selected_cat_from_sidebar
-
-    if st.session_state.active_category != selected_cat_from_sidebar:
-        # 重置所有測驗狀態
-        for key in ['cloze_q', 'mc_q', 'flash_idx', 'flipped']:
+    # --- 關鍵：監控領域與模式狀態 ---
+    if "active_cat" not in st.session_state:
+        st.session_state.active_cat = selected_cat_from_sidebar
+    
+    # 只要領域一換，清空所有測驗暫存，防止索引錯誤
+    if st.session_state.active_cat != selected_cat_from_sidebar:
+        for key in ['cloze_q', 'mc_q', 'flash_idx', 'flipped', 'mc_q_data']:
             if key in st.session_state:
                 st.session_state[key] = None
-        st.session_state.active_category = selected_cat_from_sidebar
+        st.session_state.active_cat = selected_cat_from_sidebar
         st.rerun()
 
-    # --- B. 模式記憶邏輯：確保 radio 不會跳回「隨機字卡」 ---
+    # --- 模式記憶：防止跳回第一個選項 ---
     modes = ["隨機字卡", "四選一測驗", "克漏字挑戰"]
-    
-    # 檢查上次紀錄的模式 index
     if "quiz_mode_idx" not in st.session_state:
         st.session_state.quiz_mode_idx = 0
 
-    st.markdown('<h2 class="responsive-title"> 測驗區</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="responsive-title">🎯 測驗中心</h2>', unsafe_allow_html=True)
 
-    # 這裡的 index 使用 session_state 紀錄的數值
     selected_mode = st.radio(
-        "選擇挑戰模式", 
-        modes, 
+        "選擇挑戰模式", modes, 
         index=st.session_state.quiz_mode_idx, 
-        horizontal=True,
-        key="quiz_radio_selector"
+        horizontal=True, 
+        key="quiz_mode_selector"
     )
-    
-    # 即時更新模式紀錄
+    # 同步模式紀錄
     st.session_state.quiz_mode_idx = modes.index(selected_mode)
 
-    # --- C. 介紹與路由邏輯 ---
-    intro_key = f"intro_done_{selected_mode}"
-    if intro_key not in st.session_state:
-        st.session_state[intro_key] = False
+    # --- 建立題目池 ---
+    if selected_cat_from_sidebar == "全部顯示":
+        pool = [{**v, "cat": c['category']} for c in data for g in c['root_groups'] for v in g['vocabulary']]
+    else:
+        pool = [{**v, "cat": c['category']} for c in data if c['category'] == selected_cat_from_sidebar for g in c['root_groups'] for v in g['vocabulary']]
+    
+    if not pool:
+        st.error("此範圍無資料。")
+        return
 
-    if not st.session_state[intro_key]:
-        render_mode_introduction(selected_mode)
-        if st.button(f"Got it! 進入 {selected_mode}", use_container_width=True, type="primary"):
-            st.session_state[intro_key] = True
-            st.rerun()
-        return 
-
-    st.divider()
-
-    # 根據選定的模式渲染內容
+    # --- 路由 ---
     if selected_mode == "隨機字卡":
         render_flashcard_mode(pool)
     elif selected_mode == "四選一測驗":
@@ -464,164 +455,96 @@ def render_mode_introduction(mode):
             - **學習目標：** 讓單字回歸到句子中，理解如何將學到的單字「用出來」。
         """)
 def render_flashcard_mode(pool):
-    if 'flash_idx' not in st.session_state:
+    # 檢查索引是否有效
+    if 'flash_idx' not in st.session_state or st.session_state.flash_idx is None or st.session_state.flash_idx >= len(pool):
         st.session_state.flash_idx = random.randint(0, len(pool)-1)
         st.session_state.flipped = False
 
     q = pool[st.session_state.flash_idx]
     
-    # 視覺強化：加上漸層背景感
     st.markdown(f"""
-        <div style="border: 2px solid #4CAF50; border-radius: 15px; padding: 30px; text-align: center; background: linear-gradient(145deg, #ffffff, #f0f0f0); box-shadow: 5px 5px 15px rgba(0,0,0,0.1);">
-            <div style="color: gray; font-size: 0.9rem; margin-bottom: 10px;"> {q['cat']}</div>
-            <div style="font-size: 2.5rem; font-weight: bold; color: #2E7D32; margin-bottom: 10px;">{q['word']}</div>
+        <div style="border: 2px solid var(--primary-color); border-radius: 15px; padding: 40px; text-align: center; background: var(--secondary-background-color);">
+            <div style="font-size: 2.5rem; font-weight: bold; color: var(--primary-color);">{q['word']}</div>
         </div>
     """, unsafe_allow_html=True)
-    st.write("") # 間距
 
-    col1, col2 = st.columns(2)
-    if col1.button(" 查看答案 / 聽讀音", use_container_width=True):
+    c1, c2 = st.columns(2)
+    if c1.button("🔍 答案 / 播放", use_container_width=True):
         st.session_state.flipped = True
         speak(q['word'])
-    
-    if col2.button("➡️ 下一題", use_container_width=True, type="secondary"):
-        # 確保下一題不會跟這一題重複
-        new_idx = random.randint(0, len(pool)-1)
-        while len(pool) > 1 and new_idx == st.session_state.flash_idx:
-            new_idx = random.randint(0, len(pool)-1)
-        
-        st.session_state.flash_idx = new_idx
+    if c2.button("➡️ 下一題", use_container_width=True):
+        st.session_state.flash_idx = random.randint(0, len(pool)-1)
         st.session_state.flipped = False
         st.rerun()
 
-    if st.session_state.flipped:
-        st.success(f" **中文定義：** {q['definition']}")
-        st.info(f" **字源構造：** `{q['breakdown']}`")
-def render_multiple_choice_mode(pool):
-    # 確保 session 狀態初始化
-    if 'mc_q' not in st.session_state:
-        target = random.choice(pool)
-        
-        # 從 pool 中找出除了正確答案以外的所有定義作為干擾項
-        all_distractors = [x['definition'] for x in pool if x['word'] != target['word']]
-        
-        # 如果干擾項不足 3 個，就從所有資料中抓（確保測驗能進行）
-        if len(all_distractors) < 3:
-            # 這裡可以考慮傳入整個 data 或者是給定預設錯誤選項
-            distractors = random.sample(all_distractors, len(all_distractors))
-        else:
-            distractors = random.sample(all_distractors, 3)
-            
-        options = distractors + [target['definition']]
-        random.shuffle(options)
-        
-        st.session_state.mc_q = {
-            "target": target, 
-            "options": options, 
-            "answered": False,
-            "user_choice": None
-        }
+    if st.session_state.get('flipped'):
+        st.info(f"💡 **定義：** {q['definition']} \n\n 🏗️ **拆解：** `{q['breakdown']}`")
+def render_flashcard_mode(pool):
+    # 檢查索引是否有效
+    if 'flash_idx' not in st.session_state or st.session_state.flash_idx is None or st.session_state.flash_idx >= len(pool):
+        st.session_state.flash_idx = random.randint(0, len(pool)-1)
+        st.session_state.flipped = False
 
-    q_data = st.session_state.mc_q
-    st.markdown(f"### 請選出 **{q_data['target']['word']}** 的正確含義：")
+    q = pool[st.session_state.flash_idx]
     
-    # 顯示選項按鈕
-    for opt in q_data['options']:
-        # 如果已經回答過，按鈕變為不可按或顯示顏色
-        disabled = q_data['answered']
-        if st.button(opt, use_container_width=True, disabled=disabled, key=f"btn_{opt}"):
-            st.session_state.mc_q['answered'] = True
-            st.session_state.mc_q['user_choice'] = opt
-            st.rerun()
-
-    # 顯示結果
-    if q_data['answered']:
-        if q_data['user_choice'] == q_data['target']['definition']:
-            st.success(f" 正確！ {q_data['target']['word']} 就是「{q_data['target']['definition']}」")
-            speak(q_data['target']['word'])
-        else:
-            st.error(f" 答錯了，正確答案是：{q_data['target']['definition']}")
-        
-        # 拆解詳解
-        st.info(f" **構造拆解：** `{q_data['target']['breakdown']}`")
-        
-        if st.button("下一題 ➡️"):
-            del st.session_state.mc_q
-            st.rerun()
-
-def render_cloze_test_mode(pool):
-    # 篩選有例句且包含單字的資料
-    pool_with_ex = [
-        x for x in pool 
-        if x.get('example') and str(x['example']) != 'nan' 
-        and x['word'].lower() in x['example'].lower()
-    ]
-    
-    if not pool_with_ex:
-        st.warning("⚠️ 此分類的例句不足以產生克漏字測驗。")
-        return
-
-    # 初始化題目：確保只有在 cloze_q 為 None 時才抽新題
-    if 'cloze_q' not in st.session_state or st.session_state.cloze_q is None:
-        target = random.choice(pool_with_ex)
-        
-        # 挖空邏輯
-        import re
-        pattern = re.compile(re.escape(target['word']), re.IGNORECASE)
-        display_ex = pattern.sub(" ________ ", target['example'])
-        
-        # 三選一選項
-        other_words = [x['word'] for x in pool if x['word'].lower() != target['word'].lower()]
-        distractors = random.sample(other_words, min(2, len(other_words)))
-        options = distractors + [target['word']]
-        random.shuffle(options)
-        
-        st.session_state.cloze_q = {
-            "target": target,
-            "display": display_ex,
-            "options": options,
-            "answered": False,
-            "user_choice": None
-        }
-
-    q = st.session_state.cloze_q
-
-    # UI 顯示
-    st.info("🔍 **請根據中文翻譯，選出正確單字：**")
     st.markdown(f"""
-        <div style="background: var(--secondary-background-color); padding: 20px; border-radius: 10px; border-left: 5px solid #4CAF50;">
-            <p style="font-size: 1.2rem;">{q['display']}</p>
-            <p style="color: gray;">👉 {q['target']['translation']}</p>
+        <div style="border: 2px solid var(--primary-color); border-radius: 15px; padding: 40px; text-align: center; background: var(--secondary-background-color);">
+            <div style="font-size: 2.5rem; font-weight: bold; color: var(--primary-color);">{q['word']}</div>
         </div>
     """, unsafe_allow_html=True)
 
-    # 選項按鈕
+    c1, c2 = st.columns(2)
+    if c1.button("🔍 答案 / 播放", use_container_width=True):
+        st.session_state.flipped = True
+        speak(q['word'])
+    if c2.button("➡️ 下一題", use_container_width=True):
+        st.session_state.flash_idx = random.randint(0, len(pool)-1)
+        st.session_state.flipped = False
+        st.rerun()
+
+    if st.session_state.get('flipped'):
+        st.info(f"💡 **定義：** {q['definition']} \n\n 🏗️ **拆解：** `{q['breakdown']}`")
+def render_cloze_test_mode(pool):
+    # 篩選題目
+    pool_with_ex = [x for x in pool if x.get('example') and x['word'].lower() in x['example'].lower()]
+    if not pool_with_ex:
+        st.warning("此分類例句不足。")
+        return
+
+    if 'cloze_q' not in st.session_state or st.session_state.cloze_q is None:
+        target = random.choice(pool_with_ex)
+        import re
+        display_ex = re.compile(re.escape(target['word']), re.IGNORECASE).sub(" ________ ", target['example'])
+        
+        # 確保有足夠干擾項
+        others = [x['word'] for x in pool if x['word'] != target['word']]
+        distractors = random.sample(others, min(2, len(others)))
+        options = distractors + [target['word']]
+        random.shuffle(options)
+        
+        st.session_state.cloze_q = {"target": target, "display": display_ex, "options": options, "answered": False}
+
+    q = st.session_state.cloze_q
+
+    st.markdown(f"**{q['display']}**")
+    st.caption(f"👉 {q['target']['translation']}")
+
     for idx, opt in enumerate(q['options']):
-        if st.button(opt, key=f"cl_opt_{idx}", use_container_width=True, disabled=q['answered']):
+        if st.button(opt, key=f"cl_{idx}", use_container_width=True, disabled=q['answered']):
             st.session_state.cloze_q['answered'] = True
             st.session_state.cloze_q['user_choice'] = opt
+            if opt == q['target']['word']: speak(opt)
             st.rerun()
 
-    # 回答後的解析與語音
     if q['answered']:
-        if q['user_choice'] == q['target']['word']:
-            st.success(f"正確！單字是 **{q['target']['word']}**")
-            # 只有在剛答對時自動發音一次
-            if 'last_spoken' not in st.session_state or st.session_state.last_spoken != q['target']['word']:
-                speak(q['target']['word'])
-                st.session_state.last_spoken = q['target']['word']
-        else:
-            st.error(f"答錯了，正確答案是：{q['target']['word']}")
-
-        # 詳解卡片
-        st.write(f" **定義：** {q['target']['definition']}")
-        st.write(f" **構造：** `{q['target']['breakdown']}`")
-
+        if q['user_choice'] == q['target']['word']: st.success("正確！")
+        else: st.error(f"錯誤，答案是：{q['target']['word']}")
+        
         # 純發音按鈕
-        if st.button(" 播放讀音", key="audio_btn"):
+        if st.button("🔊 播放讀音", key="audio_cloze"):
             speak(q['target']['word'])
-
-        if st.button("下一題 ➡️", type="primary", use_container_width=True):
+            
+        if st.button("下一題 ➡️", type="primary"):
             st.session_state.cloze_q = None
             st.rerun()
 def ui_search_page(data, selected_cat):
