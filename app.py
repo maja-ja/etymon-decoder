@@ -383,7 +383,7 @@ def render_search_hero_card(all_words):
         </div>
     """, unsafe_allow_html=True)
     
-    if st.button("🔊 聽看看發音", key="hero_audio"):
+    if st.button("🔊 聽看看", key="hero_audio"):
         speak(q['word'])
 def ui_quiz_page(data, selected_cat_from_sidebar):
     # 1. 偵測領域變動
@@ -403,7 +403,7 @@ def ui_quiz_page(data, selected_cat_from_sidebar):
         st.rerun()
     # ---------------------------
 
-    st.markdown('<h2 class="responsive-title">🎯 測驗中心</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="responsive-title"> 測驗中心</h2>', unsafe_allow_html=True)
 
     if selected_cat_from_sidebar == "請選擇領域":
         st.warning("👈 **請先從左側「分類篩選」選擇一個領域來開始！**")
@@ -454,21 +454,21 @@ def render_mode_introduction(mode):
     """題型開始前的原理介紹頁面 (清楚文字版)"""
     if mode == "隨機字卡":
         st.markdown("""
-            ### 🎴 隨機字卡：建立初步印象
+            ###  隨機字卡：建立初步印象
             - **出題邏輯：** 從你選的領域中，隨機抽出單字正面。
             - **怎麼練習：** 看到單字時「先別翻面」，試著在大腦拆解它的字根。
             - **學習目標：** 訓練「主動回想」，讓大腦對字根結構產生直覺反應。
         """)
     elif mode == "四選一測驗":
         st.markdown("""
-            ### 🎯 四選一：精準定義辨析
+            ###  四選一：精準定義辨析
             - **出題邏輯：** 單字對應四個中文定義（1個正確 + 3個隨機干擾項）。
             - **怎麼練習：** 找出最符合該單字「拆解含義」的中文解釋。
             - **學習目標：** 訓練大腦在多個相似選項中，透過字根精準判斷語義。
         """)
     elif mode == "克漏字挑戰":
         st.markdown("""
-            ### 📝 克漏字：情境應用練習
+            ###  克漏字：情境應用練習
             - **出題邏輯：** 挖空例句中的單字，並提供 3 個選項。
             - **怎麼練習：** 閱讀英文例句與中文翻譯，根據語境選出正確單字。
             - **學習目標：** 讓單字回歸到句子中，理解如何將學到的單字「用出來」。
@@ -483,14 +483,14 @@ def render_flashcard_mode(pool):
     # 視覺強化：加上漸層背景感
     st.markdown(f"""
         <div style="border: 2px solid #4CAF50; border-radius: 15px; padding: 30px; text-align: center; background: linear-gradient(145deg, #ffffff, #f0f0f0); box-shadow: 5px 5px 15px rgba(0,0,0,0.1);">
-            <div style="color: gray; font-size: 0.9rem; margin-bottom: 10px;">🏷️ {q['cat']}</div>
+            <div style="color: gray; font-size: 0.9rem; margin-bottom: 10px;"> {q['cat']}</div>
             <div style="font-size: 2.5rem; font-weight: bold; color: #2E7D32; margin-bottom: 10px;">{q['word']}</div>
         </div>
     """, unsafe_allow_html=True)
     st.write("") # 間距
 
     col1, col2 = st.columns(2)
-    if col1.button("🔍 查看答案 / 聽讀音", use_container_width=True):
+    if col1.button(" 查看答案 / 聽讀音", use_container_width=True):
         st.session_state.flipped = True
         speak(q['word'])
     
@@ -505,8 +505,8 @@ def render_flashcard_mode(pool):
         st.rerun()
 
     if st.session_state.flipped:
-        st.success(f"💡 **中文定義：** {q['definition']}")
-        st.info(f"🏗️ **字源構造：** `{q['breakdown']}`")
+        st.success(f" **中文定義：** {q['definition']}")
+        st.info(f" **字源構造：** `{q['breakdown']}`")
 def render_multiple_choice_mode(pool):
     # 確保 session 狀態初始化
     if 'mc_q' not in st.session_state:
@@ -547,13 +547,13 @@ def render_multiple_choice_mode(pool):
     # 顯示結果
     if q_data['answered']:
         if q_data['user_choice'] == q_data['target']['definition']:
-            st.success(f"🎉 正確！ {q_data['target']['word']} 就是「{q_data['target']['definition']}」")
+            st.success(f" 正確！ {q_data['target']['word']} 就是「{q_data['target']['definition']}」")
             speak(q_data['target']['word'])
         else:
-            st.error(f"❌ 答錯了，正確答案是：{q_data['target']['definition']}")
+            st.error(f" 答錯了，正確答案是：{q_data['target']['definition']}")
         
         # 拆解詳解
-        st.info(f"🏗️ **構造拆解：** `{q_data['target']['breakdown']}`")
+        st.info(f" **構造拆解：** `{q_data['target']['breakdown']}`")
         
         if st.button("下一題 ➡️"):
             del st.session_state.mc_q
@@ -568,7 +568,7 @@ def render_cloze_test_mode(pool):
     ]
     
     if len(pool_with_ex) < 3:
-        st.warning("⚠️ 此分類的例句不足（至少需要 3 個帶例句的單字）來產生三選一測驗。")
+        st.warning("此分類的例句不足（至少需要 3 個帶例句的單字）來產生三選一測驗。")
         return
 
     # 2. 核心初始化邏輯 (確保 q 一定存在)
@@ -600,7 +600,7 @@ def render_cloze_test_mode(pool):
     q = st.session_state.cloze_q
 
     # 3. 顯示介面
-    st.info("🔍 **請根據中文翻譯，選出最適合填入空格的單字：**")
+    st.info("**請根據中文翻譯，選出最適合填入空格的單字：**")
     st.markdown(f"""
         <div style="background: var(--secondary-background-color); padding: 25px; border-radius: 15px; border-left: 5px solid var(--primary-color); margin-bottom: 20px;">
             <p style="font-size: 1.3rem; line-height: 1.6; color: var(--text-color);">{q['display']}</p>
@@ -619,13 +619,13 @@ def render_cloze_test_mode(pool):
  # ... 在結果反饋邏輯中加入
     if q['answered']:
         if q['user_choice'] == q['target']['word']:
-            st.success(f"🎉 太棒了！正確答案是 **{q['target']['word']}**")
+            st.success(f"太棒了！正確答案是 **{q['target']['word']}**")
             speak(q['target']['word']) # <--- 自動發音
         else:
-            st.error(f"❌ 答錯了，正確單字應為：**{q['target']['word']}**")
+            st.error(f"答錯了，正確單字應為：**{q['target']['word']}**")
     
     # 在詳解卡片上方加一個「手動播放」按鈕，方便使用者重複聽
-    if st.button(f"🔊 再聽一次 {q['target']['word']}", key="replay_btn"):
+    if st.button(f"🔊 {q['target']['word']}", key="replay_btn"):
         speak(q['target']['word'])
         # 顯示單字詳解卡片
         st.markdown(f"""
