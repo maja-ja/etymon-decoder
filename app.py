@@ -1,6 +1,8 @@
+import datetime
 import streamlit as st
 import json
 import os
+import time
 import random
 import pandas as pd
 import base64
@@ -68,53 +70,35 @@ def inject_custom_css():
 # 1. 修正語音發音 (改良為 HTML5 標籤)
 # ==========================================
 def speak(text):
-    """
-    針對 iPhone PWA 優化的語音函式
-    解決『轉圈圈』與『無聲』問題
-    """
+    """終極修正版：使用 JavaScript 強制觸發瀏覽器音訊播放"""
     try:
-        from gtts import gTTS
-        import base64
-        from io import BytesIO
         import time
-
-        # 1. 快速生成語音
         tts = gTTS(text=text, lang='en')
         fp = BytesIO()
         tts.write_to_fp(fp)
         fp.seek(0)
         audio_base64 = base64.b64encode(fp.read()).decode()
-        ts = int(time.time() * 1000)
-        audio_data = f"data:audio/mp3;base64,{audio_base64}"
-
-        # 2. 自動播放嘗試 (電腦/安卓)
-        st.components.v1.html(f"""
-            <script>
-                var audio = new Audio("{audio_data}");
-                audio.play().catch(function(e) {{ console.log("Autoplay blocked"); }});
-            </script>
-        """, height=0)
-
-        # 3. 備用播放器 (iPhone PWA 穩定方案)
-        # 使用更簡約的樣式，減少轉圈圈的視覺干擾
-        st.markdown(f"""
-            <div style="background: rgba(30, 136, 229, 0.05); 
-                        padding: 12px; border-radius: 12px; 
-                        border: 1.5px solid #1E88E5; margin: 10px 0;">
-                <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                    <span style="font-size: 1.2rem; margin-right: 8px;">🔊</span>
-                    <span style="font-size: 0.9rem; color: #1E88E5; font-weight: bold;">
-                        點擊下方播放 (iPhone 備用)
-                    </span>
-                </div>
-                <audio controls style="width: 100%; height: 40px;" playsinline preload="auto">
-                    <source src="{audio_data}#t={ts}" type="audio/mp3">
-                </audio>
-            </div>
-        """, unsafe_allow_html=True)
         
+        # 產生唯一 ID 避免快取衝突
+        unique_id = f"audio_{int(time.time() * 1000)}"
+        
+        # 使用 JavaScript 建立音訊物件並播放
+        # 這能繞過 HTML 標籤不更新的問題，並強制瀏覽器執行播放指令
+        audio_html = f"""
+            <div id="{unique_id}"></div>
+            <script>
+                (function() {{
+                    var audio = new Audio("data:audio/mp3;base64,{audio_base64}");
+                    audio.play().catch(function(error) {{
+                        console.log("播放被瀏覽器阻擋，嘗試手動觸發", error);
+                    }});
+                }})();
+            </script>
+        """
+        st.components.v1.html(audio_html, height=0)
     except Exception as e:
-        st.error(f"語音生成失敗，請檢查網路連線。")
+        st.error(f"語音錯誤: {e}")
+
 # ==========================================
 # 1. 核心配置與雲端同步 (保留原代碼)
 # ==========================================
@@ -175,11 +159,6 @@ def load_db():
             })
         structured_data.append({"category": str(cat_name), "root_groups": root_groups})
     return structured_data
-
-
-import datetime
-import streamlit as st
-
 def ui_time_based_lofi():
     """
     四個時段自動切換 (06-12, 12-18, 18-23, 23-06)
@@ -229,8 +208,6 @@ def ui_time_based_lofi():
         """
         st.markdown(embed_code, unsafe_allow_html=True)
         st.caption(f"目前處於 {icon} 時段。若顯示無法播放，請點擊影片標題開啟。")
-
-
 def save_feedback_to_gsheet(word, feedback_type, comment):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
@@ -256,10 +233,10 @@ def get_stats(data):
 # ==========================================
 def ui_domain_page(domain_data, title, theme_color, bg_color):
     # --- 任務 1：使用說明介面 ---
-    with st.expander("📖 初次使用?點擊查看「拆解式學習法」說明", expanded=False):
+    with st.expander("📖 初次使用？點擊查看「拆解式學習法」說明", expanded=False):
         st.markdown(f"""
         <div style="padding:15px; border-radius:10px; background-color:{bg_color}22; border-left:5px solid {theme_color};">
-            <h4 style="color:{theme_color}; margin-top:0;">如何使用此工具</h4>
+            <h4 style="color:{theme_color}; margin-top:0;">如何使用此工具？</h4>
             <ol class="responsive-text">
                 <li><b>搜尋字根：</b> 在下方輸入框輸入你想找的字根（如 <code>bio</code>）或含義（如 <code>生命</code>）。</li>
                 <li><b>觀察構造：</b> 點開單字後，重點看「構造拆解」，理解前綴、字根、後綴如何組合成新字。</li>
@@ -650,23 +627,40 @@ def ui_search_page_all_list(data, selected_cat):
                 if not query or (query in v['word'].lower() or query in root_text or query in meaning_text)
             ]
             
+            # ... 前面程式碼不變 ...
+
             if matched_vocab:
                 found_any = True
                 root_label = f"{root_text.upper()} ({group['meaning']})"
                 # 搜尋時自動展開，平時收合
                 with st.expander(f"✨ {root_label}", expanded=True if query else False):
                     for v in matched_vocab:
+                        # 1. 顯示單字資訊
                         st.markdown(f'**{v["word"]}** `{v["breakdown"]}`: {v["definition"]}')
-                        if st.button("播放", key=f"p_{v['word']}_{root_text}"): speak(v['word'])
+                        
+                        # 2. 建立按鈕橫列 (把播放和報錯放在一起比較美觀)
+                        col1, col2 = st.columns([1, 4])
+                        with col1:
+                            if st.button("播放", key=f"p_{v['word']}_{root_text}"): 
+                                speak(v['word'])
+                        with col2:
+                            # --- 在這裡呼叫你的報錯組件 ---
+                            ui_feedback_component(v["word"])
+                        
+                        st.write("") # 增加一點間距
 def ui_newbie_whiteboard_page():
     st.markdown('<h1 class="responsive-title">📖 教學區</h1>', unsafe_allow_html=True)
     
     st.success("### 🔍 如何正確搜尋與瀏覽？")
     st.markdown("""
-     muchas 使用本工具時，請遵循以下步驟以獲得最佳體驗：
-    * **步驟一：** 在左側選單點選 **「字根區」**。
-    * **步驟二：** 在下方 **「分類篩選」** 勾選你想查看的程度（如：高中區）。
-    * **步驟三：** 此時右側會出現 **「全部字根列表」**，你也可以在上方搜尋框輸入關鍵字進行精確篩選。
+     使用本工具時，請遵循以下步驟以獲得最佳體驗：
+    * **步驟一：** 在左側選單點選你想查看的程度（如：高中區）。
+    * **步驟二：** 在下方功能區點選想要的功能如 **「字根區」**  。
+    * **步驟三：** 此時右側會出現 **「搜尋框」**，可以輸入關鍵字進行精確篩選。
+    * 
+    * **提示一：** **「學習區」** 可以依據 **程度** 或是 **全部** 來決定題目字卡的範圍
+    * **提示二：手機/平板在選單右邊多點幾下就可以關閉選單了！**
+    * **提示三：** 在選單左上方新增四個時間段（06-12, 12-18, 18-23, 23-06）的音樂 **（可能不穩定）**
     """)
     
     st.divider()
@@ -680,47 +674,39 @@ def main():
     data = load_db()
     
     st.sidebar.title("Etymon Decoder")
-    
-    # --- 加入這一行 ---
     ui_time_based_lofi() 
-    
-    # 接下來是你原本的統計框、導航選單等等...
-
-    # --- 第一區：統計與刷新 ---
+    # ==========================================
+    # 1. 搬移上來的功能：統計、刷新與分類篩選
+    # ==========================================
     with st.sidebar.container():
+        # 顯示資料庫統計
         _, total_words = get_stats(data)
         st.markdown(f"""
             <div class="stats-container" style="margin-bottom: 10px;">
                 <small>資料庫總計</small><br>
-                <span style="font-size: 1.8rem; font-weight: bold; color: #1E88E5;">{total_words}</span> Words
+                <span style="font-size: 1.8rem; font-weight: bold; color: #1E88E5;">{total_words}</span> 
+                <span style="font-size: 1rem; opacity: 0.8;">Words</span>
             </div>
         """, unsafe_allow_html=True)
         
-        if st.sidebar.button("🔄 強制刷新雲端數據", use_container_width=True):
+        # 強制刷新按鈕
+        if st.button("🔄 強制刷新雲端數據", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
-        
-        # 刷新後的關閉按鈕
-        if st.sidebar.button("✅ 刷新完成 (點此關閉)", key="close_1", use_container_width=True):
-            # Streamlit 目前沒有直接程式碼關閉側邊欄的 API
-            # 但 rerun 會觸發頁面重整，在手機上有助於視覺焦點回到主頁
-            st.rerun()
 
     st.sidebar.divider()
 
-    # --- 第二區：分類篩選 ---
-    st.sidebar.markdown("### 1. 選擇領域")
+    # 分類篩選：現在是控制資料顯示的核心
+    st.sidebar.markdown("### 1. 選擇領域 (分類篩選)")
     all_cats = sorted(list(set(c['category'] for c in data)))
-    cats = ["請選擇領域", "全部顯示"] + all_cats
-    selected_cat = st.sidebar.radio("領域清單：", cats, key="filter_cat")
+    cats = ["請選擇領域", "全部顯示"] + all_cats # 這裡新增了全部顯示
+    selected_cat = st.sidebar.radio("1. 選擇領域：", cats, key="filter_cat")
     
-    # 選完領域後的關閉按鈕
-    if st.sidebar.button("🎯 選好了 (觀看字根列表)", key="close_2", use_container_width=True):
-        st.rerun()
-
     st.sidebar.divider()
 
-    # --- 第三區：功能導航 ---
+    # ==========================================
+    # 2. 導航選單：僅保留教學區、字根區、學習區
+    # ==========================================
     st.sidebar.markdown("### 2. 切換功能")
     menu = st.sidebar.radio(
         "功能導航：", 
@@ -728,17 +714,23 @@ def main():
         key="main_nav"
     )
 
-    # 切換功能後的關閉按鈕
-    if st.sidebar.button("🚀 開始學習 (點此關閉)", key="close_3", use_container_width=True):
-        st.rerun()
+    # 操作提醒
+    st.sidebar.info("💡 **操作提醒：**\n欲查看單字列表，請務必先點選「字根區」，再從上方「分類篩選」選取領域。")
 
-    # --- 主內容路由 ---
+    # ==========================================
+    # 3. 主內容路由邏輯
+    # ==========================================
     if menu == "教學區":
         ui_newbie_whiteboard_page() 
+        
     elif menu == "字根區":
-        ui_search_page_all_list(data, selected_cat) # 接收選定的分類
+        # 呼叫整合了「全部列出」與「搜尋」的功能
+        ui_search_page_all_list(data, selected_cat)
+        
+    # ... 在 main() 的路由邏輯中 ...
     elif menu == "學習區":
-        ui_quiz_page(data, selected_cat) # 接收選定的分類
+        # 傳入選定的領域，讓習題與篩選連動
+        ui_quiz_page(data, selected_cat)
 # 確保在檔案最下方呼叫
 if __name__ == "__main__":
     main()
