@@ -326,86 +326,183 @@ def ui_newbie_whiteboard():
         <p>往左下角看！側邊欄有<b>「分類篩選」</b>，可以快速瀏覽特定學科的單字庫。</p>
     </div>
     """, unsafe_allow_html=True)
+def render_search_hero_card(all_words):
+    if not all_words: return
+    
+    # 隨機抽取一個單字
+    q = random.choice(all_words)
+    
+    st.markdown(f"""
+        <div style="
+            background: var(--secondary-background-color);
+            border: 2px solid var(--primary-color);
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            margin: 20px auto;
+            max-width: 600px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        ">
+            <div style="font-size: 0.8rem; opacity: 0.6; margin-bottom: 10px; color: var(--text-color);">[ {q['cat']} ] 解碼推薦</div>
+            <div class="responsive-word" style="color: var(--primary-color); font-weight: 800; line-height: 1.2;">
+                {q['word']}
+            </div>
+            <div style="margin: 15px 0;">
+                <code style="font-size: 1.2rem; color: #ff4b4b;">{q['breakdown']}</code>
+            </div>
+            <div class="responsive-text" style="color: var(--text-color); font-weight: 500;">
+                {q['definition']}
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    if st.button("🔊 聽看看發音", key="hero_audio"):
+        speak(q['word'])
 def ui_quiz_page(data, selected_cat_from_sidebar):
-    st.markdown('<div class="responsive-title" style="font-weight:bold;">學習測驗區 (Flashcards)</div>', unsafe_allow_html=True)
+    st.markdown('<h2 class="responsive-title">🎯 測驗中心</h2>', unsafe_allow_html=True)
 
-    # 1. 檢查側邊欄是否有選擇領域
     if selected_cat_from_sidebar == "請選擇領域":
-        st.warning("👈 **請先從左側「分類篩選」選擇一個領域（或『全部顯示』）來開始測驗！**")
+        st.warning("👈 **請先從左側「分類篩選」選擇一個領域來開始！**")
         return
 
-    # 2. 自動偵測側邊欄切換，若分類改變則清空目前題目
-    if st.session_state.get('last_quiz_cat') != selected_cat_from_sidebar:
-        st.session_state.last_quiz_cat = selected_cat_from_sidebar
-        if 'flash_q' in st.session_state: 
-            del st.session_state.flash_q
-        st.rerun()
+    # 1. 建立該領域的題目池
+    if selected_cat_from_sidebar == "全部顯示":
+        pool = [{**v, "cat": c['category']} for c in data for g in c['root_groups'] for v in g['vocabulary']]
+    else:
+        pool = [{**v, "cat": c['category']} for c in data if c['category'] == selected_cat_from_sidebar for g in c['root_groups'] for v in g['vocabulary']]
+    
+    if not pool:
+        st.error("此範圍無資料，請檢查資料庫。")
+        return
 
-    # 3. 根據側邊欄選擇建立題目池
-    if 'flash_q' not in st.session_state:
-        if selected_cat_from_sidebar == "全部顯示":
-            pool = [{**v, "cat": c['category']} for c in data for g in c['root_groups'] for v in g['vocabulary']]
-        else:
-            pool = [{**v, "cat": c['category']} for c in data if c['category'] == selected_cat_from_sidebar for g in c['root_groups'] for v in g['vocabulary']]
-        
-        if not pool: 
-            st.warning("此範圍無資料")
-            return
-            
-        st.session_state.flash_q = random.choice(pool)
+    # 2. 題型選擇 (使用 st.pills)
+    quiz_mode = st.pills("選擇挑戰模式", ["隨機字卡", "四選一測驗", "克漏字挑戰"], index=0)
+    
+    # 初始化「是否已閱讀原理」的狀態
+    if f"intro_done_{quiz_mode}" not in st.session_state:
+        st.session_state[f"intro_done_{quiz_mode}"] = False
+
+    # 2. 原理介紹頁面 (如果還沒點 Got it!)
+    if not st.session_state[f"intro_done_{quiz_mode}"]:
+        render_mode_introduction(quiz_mode)
+        if st.button("Got it! 進入挑戰", use_container_width=True, type="primary"):
+            st.session_state[f"intro_done_{quiz_mode}"] = True
+            st.rerun()
+        return # 攔截，不往下執行測驗
+
+    st.divider()
+
+    # 3. 路由到對應的測驗函數
+    if quiz_mode == "隨機字卡":
+        render_flashcard_mode(pool)
+    elif quiz_mode == "四選一測驗":
+        render_multiple_choice_mode(pool)
+    elif quiz_mode == "克漏字挑戰":
+        render_cloze_test_mode(pool)
+def render_mode_introduction(mode):
+    if mode == "隨機字卡":
+        st.markdown("""
+            ### 🧠 隨機字卡：主動回想原理 (Active Recall)
+            - **學習法：** 看到單字時，大腦先搜尋記憶，再翻開答案確認。
+            - **重點：** 不要急著翻面！先在腦中拆解該單字的「前綴 + 字根」。
+            - **效果：** 強化神經連結，比單純閱讀清單有效 3 倍。
+        """)
+    elif mode == "四選一測驗":
+        st.markdown("""
+            ### 🔍 四選一：語義辨析原理 (Discrimination)
+            - **學習法：** 從相似的定義中找出正確的一個。
+            - **重點：** 觀察選項間的細微差別，結合字根含義進行排除。
+            - **效果：** 訓練大腦在模糊資訊中精準定位正確定義。
+        """)
+    elif mode == "克漏字挑戰":
+        st.markdown("""
+            ### ✍️ 克漏字：情境應用原理 (Contextual Learning)
+            - **學習法：** 根據上下文語境，將正確的積木（單字）填入。
+            - **重點：** 理解例句的結構，判斷該詞彙在真實對話中的用法。
+            - **效果：** 讓單字不再是孤立的單詞，而是會使用的「溝通工具」。
+        """)
+
+def render_flashcard_mode(pool):
+    if 'flash_idx' not in st.session_state:
+        st.session_state.flash_idx = random.randint(0, len(pool)-1)
         st.session_state.flipped = False
-        st.session_state.voiced = False 
 
-    # 4. 顯示目前題目
-    q = st.session_state.flash_q
+    q = pool[st.session_state.flash_idx]
     
-    # 顯示目前測驗範圍提醒
-    st.caption(f"📍 目前範圍：{selected_cat_from_sidebar}")
-    
-    # 單字卡片
+    # 顯示字卡樣式
     st.markdown(f"""
-        <div style="text-align: center; padding: 5vh 2vw; border: 3px solid #eee; border-radius: 25px; background: #fdfdfd; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <p style="color: #999; font-weight: bold;">[ {q['cat']} ]</p>
-            <h1 class="responsive-word" style="margin: 0; color: #1E88E5;">{q['word']}</h1>
+        <div style="border: 3px solid var(--primary-color); border-radius: 20px; padding: 40px; text-align: center; background: var(--secondary-background-color);">
+            <div style="opacity: 0.6;">[{q['cat']}]</div>
+            <div class="responsive-word" style="color: var(--primary-color);">{q['word']}</div>
         </div>
     """, unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col1:
-        if st.button("查看答案", use_container_width=True): st.session_state.flipped = True
-    with col2:
-        if st.button("播放發音", use_container_width=True): speak(q['word'])
-    with col3:
-        if st.button("➡️ 下一題", use_container_width=True): 
-            if 'flash_q' in st.session_state: del st.session_state.flash_q
-            st.rerun()
+    col1, col2 = st.columns(2)
+    if col1.button("查看答案 / 播放", use_container_width=True):
+        st.session_state.flipped = True
+        speak(q['word'])
+    if col2.button("➡️ 下一題", use_container_width=True):
+        st.session_state.flash_idx = random.randint(0, len(pool)-1)
+        st.session_state.flipped = False
+        st.rerun()
 
-    if st.session_state.get('flipped'):
-        if not st.session_state.get('voiced'):
-            speak(q['word'])
-            st.session_state.voiced = True
-        
-        is_legal = "法律" in q['cat']
-        bg_color, label_color, text_color, breakdown_color = ("#1A1A1A", "#FFD700", "#FFFFFF", "#FFD700") if is_legal else ("#E3F2FD", "#1E88E5", "#000000", "#D32F2F")
-        p_val = str(q.get('phonetic', '')).strip().replace('/', '')
-        phonetic_html = f"<div style='color:{label_color}; font-size:1.2em; margin-bottom:5px;'>/{p_val}/</div>" if p_val and p_val != "nan" else ""
-        e_val, t_val = str(q.get('example', '')).strip(), str(q.get('translation', '')).strip()
-        example_html = f"<hr style='border-color:#555; margin:15px 0;'><div style='font-style:italic; color:#666;' class='responsive-text'>{e_val}</div>" if e_val and e_val != "nan" else ""
-        if t_val and t_val != "nan": example_html += f"<div style='color:#666; font-size:0.95em; margin-top:5px;'>({t_val})</div>"
+    if st.session_state.flipped:
+        st.info(f"💡 **定義：** {q['definition']} \n\n 🏗️ **拆解：** `{q['breakdown']}`")
 
-        st.markdown(f"""
-            <div style="background-color:{bg_color}; padding:25px; border-radius:15px; border-left:10px solid {label_color}; margin-top:20px;">
-                {phonetic_html}
-                <div class="responsive-text" style="color:{text_color};">
-                    <strong style="color:{label_color};">拆解：</strong>
-                    <span style="color:{breakdown_color}; font-family:monospace; font-weight:bold;">{q['breakdown']}</span>
-                </div>
-                <div class="responsive-text" style="color:{text_color}; margin-top:10px;">
-                    <strong style="color:{label_color};">釋義：</strong> {q['definition']}
-                </div>
-                {example_html}
-            </div>
-        """, unsafe_allow_html=True)
+def render_multiple_choice_mode(pool):
+    if 'mc_q' not in st.session_state:
+        target = random.choice(pool)
+        # 隨機選3個錯誤定義
+        distractors = random.sample([x['definition'] for x in pool if x['word'] != target['word']], min(3, len(pool)-1))
+        options = distractors + [target['definition']]
+        random.shuffle(options)
+        st.session_state.mc_q = {"target": target, "options": options, "answered": False}
+
+    q_data = st.session_state.mc_q
+    st.subheader(f"單字： {q_data['target']['word']}")
+    
+    for opt in q_data['options']:
+        if st.button(opt, use_container_width=True):
+            if opt == q_data['target']['definition']:
+                st.success("🎉 正確！")
+                speak(q_data['target']['word'])
+            else:
+                st.error(f"❌ 答錯了，正確答案是：{q_data['target']['definition']}")
+            st.session_state.mc_q['answered'] = True
+
+    if st.button("下一題"):
+        del st.session_state.mc_q
+        st.rerun()
+
+def render_cloze_test_mode(pool):
+    # 過濾出有例句的單字
+    pool_with_ex = [x for x in pool if x['example'] and str(x['example']) != 'nan']
+    if not pool_with_ex:
+        st.warning("此分類目前沒有足夠的例句。")
+        return
+
+    if 'cloze_q' not in st.session_state:
+        q = random.choice(pool_with_ex)
+        # 將例句中的單字替換為底線 (忽略大小寫)
+        display_ex = q['example'].replace(q['word'], " _______ ")
+        st.session_state.cloze_q = {"target": q, "display": display_ex}
+
+    q_data = st.session_state.cloze_q
+    st.markdown(f"### 填空：\n> {q_data['display']}")
+    st.caption(f"中文翻譯：{q_data['target']['translation']}")
+
+    ans = st.text_input("輸入缺少的單字：").strip().lower()
+    if st.button("提交答案"):
+        if ans == q_data['target']['word'].lower():
+            st.success(f"太棒了！正確答案是 {q_data['target']['word']}")
+            speak(q_data['target']['word'])
+        else:
+            st.error(f"差一點點！答案應該是：{q_data['target']['word']}")
+
+    if st.button("下一題 "):
+        del st.session_state.cloze_q
+        st.rerun()
+    
 def ui_search_page(data, selected_cat):
     # --- 任務 1：標題與教學按鈕 ---
     col_title, col_help = st.columns([3, 1])
@@ -482,19 +579,38 @@ def ui_admin_page(data):
 def ui_search_page_all_list(data, selected_cat):
     st.markdown('<h1 class="responsive-title">搜尋與瀏覽</h1>', unsafe_allow_html=True)
     
-    # 醒目提醒：篩選與導航的關聯
-    if selected_cat == "全部顯示":
-        st.warning("👈 **請注意：查看列表前，請先確保左側「導航」處於『字根區』，並從下方「分類篩選」選擇一個領域（如：國小基礎）。**")
-        st.info("💡 系統預設不會顯示所有內容，以避免介面過於混亂。")
-        ui_newbie_whiteboard() # 顯示新手教學引導
-        return
-    # 搜尋框：維持在列表上方
-    query = st.text_input("搜尋單字或字根...", placeholder="例如：act, bio, 動作...", key="root_search_bar").strip().lower()
+    # 搜尋框
+    query = st.text_input("在選定領域中搜尋...", placeholder="輸入關鍵字如：act, bio...", key="root_search_bar").strip().lower()
 
-    # 門檻判斷：必須選取分類
-    if selected_cat == "全部顯示":
-        st.warning("⚠️ 請從左側選單的『分類篩選』選擇一個特定的領域（例如：國小基礎）以展開完整列表。")
-        ui_newbie_whiteboard() # 提示新手教學
+    # --- 新增：隨機字卡區域 (當沒有搜尋動作時顯示) ---
+    if not query:
+        st.markdown("### 🎲 每日隨機推薦")
+        all_words = [{**v, "cat": c['category']} for c in data for g in c['root_groups'] for v in g['vocabulary']]
+        if all_words:
+            random_word = random.choice(all_words)
+            # 使用自適應容器包裹
+            st.markdown(f"""
+                <div style="
+                    background: var(--secondary-background-color);
+                    border: 2px solid var(--primary-color);
+                    border-radius: 20px;
+                    padding: 2rem;
+                    text-align: center;
+                    margin-bottom: 2rem;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                ">
+                    <div style="font-size: 0.9rem; opacity: 0.7;">[{random_word['cat']}]</div>
+                    <div class="responsive-word" style="color: var(--primary-color); margin: 10px 0;">{random_word['word']}</div>
+                    <div class="responsive-text" style="font-weight: bold;">{random_word['definition']}</div>
+                </div>
+            """, unsafe_allow_html=True)
+            if st.button("🔊 播放這個單字"):
+                speak(random_word['word'])
+        st.divider()
+    # -------------------------------------------
+
+    if selected_cat == "請選擇領域":
+        st.info("💡 請從左側側邊欄選擇分類以查看完整列表。")
         return
 
     # 滿足條件：執行過濾並「全部列出」
