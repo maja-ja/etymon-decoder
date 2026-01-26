@@ -625,7 +625,7 @@ def render_cloze_test_mode(pool):
             st.error(f"答錯了，正確單字應為：**{q['target']['word']}**")
     
     # 在詳解卡片上方加一個「手動播放」按鈕，方便使用者重複聽
-    if st.button(f"🔊 {q['target']['word']}", key="replay_btn"):
+    if st.button(f"🔊 , key="replay_btn"):
         speak(q['target']['word'])
         # 顯示單字詳解卡片
         st.markdown(f"""
