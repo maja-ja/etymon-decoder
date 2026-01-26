@@ -70,34 +70,18 @@ def inject_custom_css():
 # 1. 修正語音發音 (改良為 HTML5 標籤)
 # ==========================================
 def speak(text):
-    """終極修正版：使用 JavaScript 強制觸發瀏覽器音訊播放"""
-    try:
-        import time
-        tts = gTTS(text=text, lang='en')
-        fp = BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
-        audio_base64 = base64.b64encode(fp.read()).decode()
-        
-        # 產生唯一 ID 避免快取衝突
-        unique_id = f"audio_{int(time.time() * 1000)}"
-        
-        # 使用 JavaScript 建立音訊物件並播放
-        # 這能繞過 HTML 標籤不更新的問題，並強制瀏覽器執行播放指令
-        audio_html = f"""
-            <div id="{unique_id}"></div>
+    """使用瀏覽器內建 Web Speech API 進行發音"""
+    if text:
+        # 清理文本中的特殊字元避免 JS 報錯
+        safe_text = text.replace("'", "\\'").replace('"', '\\"')
+        js_code = f"""
             <script>
-                (function() {{
-                    var audio = new Audio("data:audio/mp3;base64,{audio_base64}");
-                    audio.play().catch(function(error) {{
-                        console.log("播放被瀏覽器阻擋，嘗試手動觸發", error);
-                    }});
-                }})();
+                var msg = new SpeechSynthesisUtterance('{safe_text}');
+                msg.lang = 'en-US';
+                window.speechSynthesis.speak(msg);
             </script>
         """
-        st.components.v1.html(audio_html, height=0)
-    except Exception as e:
-        st.error(f"語音錯誤: {e}")
+        st.components.v1.html(js_code, height=0)
 
 # ==========================================
 # 1. 核心配置與雲端同步 (保留原代碼)
@@ -359,19 +343,21 @@ def render_search_hero_card(all_words):
     if st.button("🔊 聽看看發音", key="hero_audio"):
         speak(q['word'])
 def ui_quiz_page(data, selected_cat_from_sidebar):
-    # --- 關鍵修正：領域切換監控 ---
-    # 檢查當前領域是否與 Session 紀錄的一致
-    if "current_cat" not in st.session_state:
-        st.session_state.current_cat = selected_cat_from_sidebar
-    
-    # 如果領域變了，清空所有測驗相關的 session state
-    if st.session_state.current_cat != selected_cat_from_sidebar:
-        keys_to_reset = ['mc_q', 'cloze_q', 'flash_idx', 'flipped']
-        for k in keys_to_reset:
-            if k in st.session_state:
-                del st.session_state[k]
-        # 更新當前領域紀錄
-        st.session_state.current_cat = selected_cat_from_sidebar
+    # 1. 偵測領域變動
+    if "last_selected_cat" not in st.session_state:
+        st.session_state.last_selected_cat = selected_cat_from_sidebar
+
+    # 如果領域改變了，立刻清理題目快取
+    if st.session_state.last_selected_cat != selected_cat_from_sidebar:
+        # 清理所有測驗模式的題目暫存
+        state_keys = ['mc_q', 'cloze_q', 'flash_idx', 'flipped']
+        for key in state_keys:
+            if key in st.session_state:
+                del st.session_state[key]
+        
+        # 同步目前的領域紀錄
+        st.session_state.last_selected_cat = selected_cat_from_sidebar
+        st.rerun()
     # ---------------------------
 
     st.markdown('<h2 class="responsive-title">🎯 測驗中心</h2>', unsafe_allow_html=True)
@@ -400,6 +386,7 @@ def ui_quiz_page(data, selected_cat_from_sidebar):
     # ---------------------------------
     
     # 接下來的 intro 邏輯保持不變
+
     intro_key = f"intro_done_{quiz_mode}"
     if intro_key not in st.session_state:
         st.session_state[intro_key] = False
@@ -586,14 +573,17 @@ def render_cloze_test_mode(pool):
             st.session_state.cloze_q['user_choice'] = opt
             st.rerun()
 
-    # 5. 回答後的結果反饋
+ # ... 在結果反饋邏輯中加入
     if q['answered']:
         if q['user_choice'] == q['target']['word']:
             st.success(f"🎉 太棒了！正確答案是 **{q['target']['word']}**")
-            speak(q['target']['word'])
+            speak(q['target']['word']) # <--- 自動發音
         else:
             st.error(f"❌ 答錯了，正確單字應為：**{q['target']['word']}**")
-        
+    
+    # 在詳解卡片上方加一個「手動播放」按鈕，方便使用者重複聽
+    if st.button(f"🔊 再聽一次 {q['target']['word']}", key="replay_btn"):
+        speak(q['target']['word'])
         # 顯示單字詳解卡片
         st.markdown(f"""
             <div style="background: rgba(128,128,128,0.1); padding: 15px; border-radius: 10px; border: 1px solid rgba(128,128,128,0.2);">
