@@ -603,7 +603,7 @@ def render_cloze_test_mode(pool):
             </div>
         """, unsafe_allow_html=True)
         
-        if st.button("下一題 ➡️", type="primary", use_container_width=True):
+        if st.button("下一題 ➡️", use_container_width=True):
             # 清除題目狀態以觸發下次初始化
             st.session_state.cloze_q = None
             st.rerun()
