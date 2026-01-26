@@ -87,6 +87,45 @@ def speak(text):
 
         audio_base64 = base64.b64encode(fp.read()).decode()
 
+        
+
+        # 產生唯一 ID 避免快取衝突
+
+        unique_id = f"audio_{int(time.time() * 1000)}"
+
+        
+
+        # 使用 JavaScript 建立音訊物件並播放
+
+        # 這能繞過 HTML 標籤不更新的問題，並強制瀏覽器執行播放指令
+
+        audio_html = f"""
+
+            <div id="{unique_id}"></div>
+
+            <script>
+
+                (function() {{
+
+                    var audio = new Audio("data:audio/mp3;base64,{audio_base64}");
+
+                    audio.play().catch(function(error) {{
+
+                        console.log("播放被瀏覽器阻擋，嘗試手動觸發", error);
+
+                    }});
+
+                }})();
+
+            </script>
+
+        """
+
+        st.components.v1.html(audio_html, height=0)
+
+    except Exception as e:
+
+        st.error(f"語音錯誤: {e}")
 # ==========================================
 # 1. 核心配置與雲端同步 (保留原代碼)
 # ==========================================
