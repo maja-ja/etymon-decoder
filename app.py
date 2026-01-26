@@ -359,6 +359,21 @@ def render_search_hero_card(all_words):
     if st.button("🔊 聽看看發音", key="hero_audio"):
         speak(q['word'])
 def ui_quiz_page(data, selected_cat_from_sidebar):
+    # --- 關鍵修正：領域切換監控 ---
+    # 檢查當前領域是否與 Session 紀錄的一致
+    if "current_cat" not in st.session_state:
+        st.session_state.current_cat = selected_cat_from_sidebar
+    
+    # 如果領域變了，清空所有測驗相關的 session state
+    if st.session_state.current_cat != selected_cat_from_sidebar:
+        keys_to_reset = ['mc_q', 'cloze_q', 'flash_idx', 'flipped']
+        for k in keys_to_reset:
+            if k in st.session_state:
+                del st.session_state[k]
+        # 更新當前領域紀錄
+        st.session_state.current_cat = selected_cat_from_sidebar
+    # ---------------------------
+
     st.markdown('<h2 class="responsive-title">🎯 測驗中心</h2>', unsafe_allow_html=True)
 
     if selected_cat_from_sidebar == "請選擇領域":
@@ -435,26 +450,33 @@ def render_flashcard_mode(pool):
 
     q = pool[st.session_state.flash_idx]
     
-    # 顯示字卡樣式
+    # 視覺強化：加上漸層背景感
     st.markdown(f"""
-        <div style="border: 3px solid var(--primary-color); border-radius: 20px; padding: 40px; text-align: center; background: var(--secondary-background-color);">
-            <div style="opacity: 0.6;">[{q['cat']}]</div>
-            <div class="responsive-word" style="color: var(--primary-color);">{q['word']}</div>
+        <div style="border: 2px solid #4CAF50; border-radius: 15px; padding: 30px; text-align: center; background: linear-gradient(145deg, #ffffff, #f0f0f0); box-shadow: 5px 5px 15px rgba(0,0,0,0.1);">
+            <div style="color: gray; font-size: 0.9rem; margin-bottom: 10px;">🏷️ {q['cat']}</div>
+            <div style="font-size: 2.5rem; font-weight: bold; color: #2E7D32; margin-bottom: 10px;">{q['word']}</div>
         </div>
     """, unsafe_allow_html=True)
+    st.write("") # 間距
 
     col1, col2 = st.columns(2)
-    if col1.button("查看答案 / 播放", use_container_width=True):
+    if col1.button("🔍 查看答案 / 聽讀音", use_container_width=True):
         st.session_state.flipped = True
         speak(q['word'])
-    if col2.button("➡️ 下一題", use_container_width=True):
-        st.session_state.flash_idx = random.randint(0, len(pool)-1)
+    
+    if col2.button("➡️ 下一題", use_container_width=True, type="secondary"):
+        # 確保下一題不會跟這一題重複
+        new_idx = random.randint(0, len(pool)-1)
+        while len(pool) > 1 and new_idx == st.session_state.flash_idx:
+            new_idx = random.randint(0, len(pool)-1)
+        
+        st.session_state.flash_idx = new_idx
         st.session_state.flipped = False
         st.rerun()
 
     if st.session_state.flipped:
-        st.info(f"💡 **定義：** {q['definition']} \n\n 🏗️ **拆解：** `{q['breakdown']}`")
-
+        st.success(f"💡 **中文定義：** {q['definition']}")
+        st.info(f"🏗️ **字源構造：** `{q['breakdown']}`")
 def render_multiple_choice_mode(pool):
     # 確保 session 狀態初始化
     if 'mc_q' not in st.session_state:
