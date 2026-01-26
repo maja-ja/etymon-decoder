@@ -70,18 +70,22 @@ def inject_custom_css():
 # 1. 修正語音發音 (改良為 HTML5 標籤)
 # ==========================================
 def speak(text):
-    """使用瀏覽器內建 Web Speech API 進行發音"""
-    if text:
-        # 清理文本中的特殊字元避免 JS 報錯
-        safe_text = text.replace("'", "\\'").replace('"', '\\"')
-        js_code = f"""
-            <script>
-                var msg = new SpeechSynthesisUtterance('{safe_text}');
-                msg.lang = 'en-US';
-                window.speechSynthesis.speak(msg);
-            </script>
-        """
-        st.components.v1.html(js_code, height=0)
+
+    """終極修正版：使用 JavaScript 強制觸發瀏覽器音訊播放"""
+
+    try:
+
+        import time
+
+        tts = gTTS(text=text, lang='en')
+
+        fp = BytesIO()
+
+        tts.write_to_fp(fp)
+
+        fp.seek(0)
+
+        audio_base64 = base64.b64encode(fp.read()).decode()
 
 # ==========================================
 # 1. 核心配置與雲端同步 (保留原代碼)
