@@ -525,7 +525,7 @@ def render_multiple_choice_mode(pool):
         # 拆解詳解
         st.info(f"🏗️ **構造拆解：** `{q_data['target']['breakdown']}`")
         
-        if st.button("下一題 ➡️", type="primary"):
+        if st.button("下一題 ➡️"):
             del st.session_state.mc_q
             st.rerun()
 
