@@ -508,69 +508,82 @@ def render_multiple_choice_mode(pool):
             st.rerun()
 
 def render_cloze_test_mode(pool):
-    # 1. 準備題目 (過濾出有例句的單字)
-    pool_with_ex = [x for x in pool if x['example'] and str(x['example']) != 'nan' and x['word'] in x['example']]
+    # 1. 基礎檢查：過濾出有例句且包含單字本身的資料
+    pool_with_ex = [
+        x for x in pool 
+        if x.get('example') and str(x['example']) != 'nan' 
+        and x['word'].lower() in x['example'].lower()
+    ]
     
     if len(pool_with_ex) < 3:
-        st.warning("此分類的例句不足以產生三選一測驗 (至少需要 3 個帶例句的單字)。")
+        st.warning("⚠️ 此分類的例句不足（至少需要 3 個帶例句的單字）來產生三選一測驗。")
         return
 
-    # 2. 初始化題目
-    if 'cloze_q' not in st.session_state:
+    # 2. 核心初始化邏輯 (確保 q 一定存在)
+    if 'cloze_q' not in st.session_state or st.session_state.cloze_q is None:
         target = random.choice(pool_with_ex)
         
-        # 挖空處理 (不分大小寫替換)
+        # 挖空處理：使用正則表達式進行不分大小寫替換
         import re
         pattern = re.compile(re.escape(target['word']), re.IGNORECASE)
         display_ex = pattern.sub(" ________ ", target['example'])
         
-        # 抽取 2 個錯誤選項 (干擾項)
-        distractors = random.sample([x['word'] for x in pool if x['word'] != target['word']], 2)
+        # 抽取干擾項：從整個 pool 抽單字，確保選項有 3 個
+        possible_distractors = [x['word'] for x in pool if x['word'].lower() != target['word'].lower()]
+        distractors = random.sample(possible_distractors, min(2, len(possible_distractors)))
+        
         options = distractors + [target['word']]
         random.shuffle(options)
         
+        # 存入 Session State
         st.session_state.cloze_q = {
             "target": target,
             "display": display_ex,
             "options": options,
-            "answered": False
+            "answered": False,
+            "user_choice": None
         }
 
+    # 獲取當前題目資料
     q = st.session_state.cloze_q
-    
+
     # 3. 顯示介面
-    st.info(f"🔍 **請根據中文翻譯，選出最適合填入空格的單字：**")
+    st.info("🔍 **請根據中文翻譯，選出最適合填入空格的單字：**")
     st.markdown(f"""
-        <div style="background: var(--secondary-background-color); padding: 20px; border-radius: 10px; border-left: 5px solid var(--primary-color); margin-bottom: 10px;">
-            <p style="font-size: 1.3rem; line-height: 1.6;">{q['display']}</p>
-            <p style="opacity: 0.8; font-style: italic;">👉 {q['target']['translation']}</p>
+        <div style="background: var(--secondary-background-color); padding: 25px; border-radius: 15px; border-left: 5px solid var(--primary-color); margin-bottom: 20px;">
+            <p style="font-size: 1.3rem; line-height: 1.6; color: var(--text-color);">{q['display']}</p>
+            <p style="opacity: 0.8; font-style: italic; color: var(--text-color);">👉 {q['target']['translation']}</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # 4. 選項按鈕
-    for opt in q['options']:
-        if st.button(opt, use_container_width=True, disabled=q['answered'], key=f"cloze_{opt}"):
-            q['answered'] = True
-            if opt == q['target']['word']:
-                st.success(f"🎉 太棒了！單字是 **{opt}**")
-                speak(opt)
-            else:
-                st.error(f"❌ 答錯了，正確單字應為：**{q['target']['word']}**")
+    # 4. 選項按鈕 (加入 Key 避免重複 ID 錯誤)
+    cols = st.columns(1) # 手機端建議一列一個大按鈕
+    for idx, opt in enumerate(q['options']):
+        if st.button(opt, use_container_width=True, disabled=q['answered'], key=f"cloze_opt_{idx}_{opt}"):
+            st.session_state.cloze_q['answered'] = True
+            st.session_state.cloze_q['user_choice'] = opt
             st.rerun()
 
-    # 5. 回答後的補充資訊
+    # 5. 回答後的結果反饋
     if q['answered']:
+        if q['user_choice'] == q['target']['word']:
+            st.success(f"🎉 太棒了！正確答案是 **{q['target']['word']}**")
+            speak(q['target']['word'])
+        else:
+            st.error(f"❌ 答錯了，正確單字應為：**{q['target']['word']}**")
+        
+        # 顯示單字詳解卡片
         st.markdown(f"""
-            <div style="background: rgba(128,128,128,0.1); padding: 15px; border-radius: 10px;">
-                <b>💡 單字解析：</b><br>
-                <b>{q['target']['word']}</b> ({q['target']['phonetic']})<br>
-                定義：{q['target']['definition']}<br>
-                構造：<code>{q['target']['breakdown']}</code>
+            <div style="background: rgba(128,128,128,0.1); padding: 15px; border-radius: 10px; border: 1px solid rgba(128,128,128,0.2);">
+                <b style="color: var(--primary-color); font-size: 1.2rem;">{q['target']['word']}</b> {q['target'].get('phonetic', '')}<br>
+                <b>定義：</b>{q['target']['definition']}<br>
+                <b>構造：</b><code>{q['target']['breakdown']}</code>
             </div>
         """, unsafe_allow_html=True)
         
-        if st.button("下一題 ➡️",use_container_width=True):
-            del st.session_state.cloze_q
+        if st.button("下一題 ➡️", type="primary", use_container_width=True):
+            # 清除題目狀態以觸發下次初始化
+            st.session_state.cloze_q = None
             st.rerun()
 def ui_search_page(data, selected_cat):
     # --- 任務 1：標題與教學按鈕 ---
