@@ -625,7 +625,7 @@ def render_cloze_test_mode(pool):
             st.error(f"答錯了，正確單字應為：**{q['target']['word']}**")
     
     # 在詳解卡片上方加一個「手動播放」按鈕，方便使用者重複聽
-    if st.button(f"🔊 key="replay_btn"):
+    if st.button(f"🔊", key="replay_btn"):
         speak(q['target']['word'])
         # 顯示單字詳解卡片
         st.markdown(f"""
@@ -647,11 +647,11 @@ def ui_search_page(data, selected_cat):
         st.markdown('<h1 class="responsive-title">搜尋與瀏覽</h1>', unsafe_allow_html=True)
     with col_help:
         # 命名為教學區的按鈕
-        with st.popover("📖 教學區", use_container_width=True):
+        with st.popover(" 教學區", use_container_width=True):
             ui_newbie_whiteboard() 
 
     # --- 任務 2：搜尋引導 ---
-    st.markdown("### 🔍 快速搜尋")
+    st.markdown("### 快速搜尋")
     query = st.text_input(
         "第一步：輸入字根或含義", 
         placeholder="例如：act, bio...", 
@@ -660,7 +660,7 @@ def ui_search_page(data, selected_cat):
     
     # 判斷是否滿足顯示條件
     if not query:
-        st.info("💡 提示：請先在上方輸入框輸入關鍵字。")
+        st.info(" 提示：請先在上方輸入框輸入關鍵字。")
         ui_newbie_whiteboard() # 顯示新手白板
         return
 
@@ -682,7 +682,7 @@ def ui_search_page(data, selected_cat):
             if matched_vocab:
                 found_results = True
                 root_label = f"{'/'.join(group['roots'])} ({group['meaning']})"
-                with st.expander(f"✨ {root_label}", expanded=True):
+                with st.expander(f" {root_label}", expanded=True):
                     for v in matched_vocab:
                         st.markdown(f'**{v["word"]}** `{v["breakdown"]}`: {v["definition"]}')
                         if st.button("播放", key=f"p_{v['word']}"): speak(v['word'])
@@ -721,7 +721,7 @@ def ui_search_page_all_list(data, selected_cat):
 
     # --- 新增：隨機字卡區域 (僅在沒搜尋時顯示) ---
     if not query:
-        st.markdown("### 🎲 每日隨機推薦")
+        st.markdown("###  每日隨機推薦")
         all_words = [{**v, "cat": c['category']} for c in data for g in c['root_groups'] for v in g['vocabulary']]
         if all_words:
             q = random.choice(all_words)
@@ -845,7 +845,7 @@ def display_filtered_results(data, query, selected_cat):
             
             if matched_vocab:
                 found_any = True
-                root_label = f"✨ {root_text.upper()} ({group['meaning']})"
+                root_label = f"{root_text.upper()} ({group['meaning']})"
                 with st.expander(root_label, expanded=True):
                     for v in matched_vocab:
                         st.markdown(f'<div class="responsive-word" style="font-weight:bold; color:#1E88E5;">{v["word"]}</div>', unsafe_allow_html=True)
@@ -898,7 +898,7 @@ def ui_search_page_all_list(data, selected_cat):
                 found_any = True
                 root_label = f"{root_text.upper()} ({group['meaning']})"
                 # 搜尋時自動展開，平時收合
-                with st.expander(f"✨ {root_label}", expanded=True if query else False):
+                with st.expander(f" {root_label}", expanded=True if query else False):
                     for v in matched_vocab:
                         # 1. 顯示單字資訊
                         st.markdown(f'**{v["word"]}** `{v["breakdown"]}`: {v["definition"]}')
@@ -980,7 +980,7 @@ def main():
     )
 
     # 操作提醒
-    st.sidebar.info("💡 **操作提醒：**\n欲查看單字列表，請務必先點選「字根區」，再從上方「分類篩選」選取領域。")
+    st.sidebar.info(" **操作提醒：**\n欲查看單字列表，請務必先點選「字根區」，再從上方「分類篩選」選取領域。")
 
     # ==========================================
     # 3. 主內容路由邏輯
