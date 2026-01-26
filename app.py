@@ -386,58 +386,59 @@ def render_search_hero_card(all_words):
     if st.button("🔊 聽看看", key="hero_audio"):
         speak(q['word'])
 def ui_quiz_page(data, selected_cat_from_sidebar):
-    # --- 1. 領域變動監控 (確保題目會換) ---
+    # --- A. 領域變動監控：一旦切換領域，立刻清空所有題目快取 ---
     if "active_category" not in st.session_state:
         st.session_state.active_category = selected_cat_from_sidebar
 
     if st.session_state.active_category != selected_cat_from_sidebar:
-        # 清除題目，但保留 quiz_mode 讓使用者不用重新選模式
+        # 重置所有測驗狀態
         for key in ['cloze_q', 'mc_q', 'flash_idx', 'flipped']:
             if key in st.session_state:
-                st.session_state[key] = None # 使用 None 比 del 更穩定
+                st.session_state[key] = None
         st.session_state.active_category = selected_cat_from_sidebar
         st.rerun()
 
-    # --- 2. 模式記憶邏輯 (解決回到字卡的問題) ---
+    # --- B. 模式記憶邏輯：確保 radio 不會跳回「隨機字卡」 ---
     modes = ["隨機字卡", "四選一測驗", "克漏字挑戰"]
     
-    # 檢查 session 中是否有紀錄模式，若無則預設為 0
-    if "current_mode_idx" not in st.session_state:
-        st.session_state.current_mode_idx = 0
+    # 檢查上次紀錄的模式 index
+    if "quiz_mode_idx" not in st.session_state:
+        st.session_state.quiz_mode_idx = 0
 
-    st.markdown('<h2 class="responsive-title">🎯 測驗中心</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="responsive-title"> 測驗區</h2>', unsafe_allow_html=True)
 
-    # 使用 radio 並連動 session_state
-    quiz_mode = st.radio(
+    # 這裡的 index 使用 session_state 紀錄的數值
+    selected_mode = st.radio(
         "選擇挑戰模式", 
         modes, 
-        index=st.session_state.current_mode_idx, 
+        index=st.session_state.quiz_mode_idx, 
         horizontal=True,
-        key="mode_selector" # 加上固定 key
+        key="quiz_radio_selector"
     )
     
-    # 當使用者點擊 radio 切換時，同步更新 index 紀錄
-    st.session_state.current_mode_idx = modes.index(quiz_mode)
+    # 即時更新模式紀錄
+    st.session_state.quiz_mode_idx = modes.index(selected_mode)
 
-    intro_key = f"intro_done_{quiz_mode}"
+    # --- C. 介紹與路由邏輯 ---
+    intro_key = f"intro_done_{selected_mode}"
     if intro_key not in st.session_state:
         st.session_state[intro_key] = False
 
     if not st.session_state[intro_key]:
-        render_mode_introduction(quiz_mode)
-        if st.button("Got it! 進入挑戰", use_container_width=True):
+        render_mode_introduction(selected_mode)
+        if st.button(f"Got it! 進入 {selected_mode}", use_container_width=True, type="primary"):
             st.session_state[intro_key] = True
             st.rerun()
         return 
 
     st.divider()
 
-    # 路由到對應測驗
-    if quiz_mode == "隨機字卡":
+    # 根據選定的模式渲染內容
+    if selected_mode == "隨機字卡":
         render_flashcard_mode(pool)
-    elif quiz_mode == "四選一測驗":
+    elif selected_mode == "四選一測驗":
         render_multiple_choice_mode(pool)
-    elif quiz_mode == "克漏字挑戰":
+    elif selected_mode == "克漏字挑戰":
         render_cloze_test_mode(pool)
 def render_mode_introduction(mode):
     """題型開始前的原理介紹頁面 (清楚文字版)"""
@@ -549,7 +550,7 @@ def render_multiple_choice_mode(pool):
             st.rerun()
 
 def render_cloze_test_mode(pool):
-    # 確保 pool 有資料
+    # 篩選有例句且包含單字的資料
     pool_with_ex = [
         x for x in pool 
         if x.get('example') and str(x['example']) != 'nan' 
@@ -557,10 +558,10 @@ def render_cloze_test_mode(pool):
     ]
     
     if not pool_with_ex:
-        st.warning("⚠️ 此分類目前沒有足夠的例句題型。")
+        st.warning("⚠️ 此分類的例句不足以產生克漏字測驗。")
         return
 
-    # 關鍵：如果 cloze_q 是 None 或不在 state 中，就一定要重新抽題
+    # 初始化題目：確保只有在 cloze_q 為 None 時才抽新題
     if 'cloze_q' not in st.session_state or st.session_state.cloze_q is None:
         target = random.choice(pool_with_ex)
         
@@ -569,8 +570,9 @@ def render_cloze_test_mode(pool):
         pattern = re.compile(re.escape(target['word']), re.IGNORECASE)
         display_ex = pattern.sub(" ________ ", target['example'])
         
-        # 建立選項 (3 選 1)
-        distractors = random.sample([x['word'] for x in pool if x['word'] != target['word']], 2)
+        # 三選一選項
+        other_words = [x['word'] for x in pool if x['word'].lower() != target['word'].lower()]
+        distractors = random.sample(other_words, min(2, len(other_words)))
         options = distractors + [target['word']]
         random.shuffle(options)
         
@@ -578,54 +580,48 @@ def render_cloze_test_mode(pool):
             "target": target,
             "display": display_ex,
             "options": options,
-            "answered": False
+            "answered": False,
+            "user_choice": None
         }
 
     q = st.session_state.cloze_q
-    # ... (顯示 UI 邏輯)
-    # 3. 顯示介面
-    st.info("**請根據中文翻譯，選出最適合填入空格的單字：**")
+
+    # UI 顯示
+    st.info("🔍 **請根據中文翻譯，選出正確單字：**")
     st.markdown(f"""
-        <div style="background: var(--secondary-background-color); padding: 25px; border-radius: 15px; border-left: 5px solid var(--primary-color); margin-bottom: 20px;">
-            <p style="font-size: 1.3rem; line-height: 1.6; color: var(--text-color);">{q['display']}</p>
-            <p style="opacity: 0.8; font-style: italic; color: var(--text-color);">👉 {q['target']['translation']}</p>
+        <div style="background: var(--secondary-background-color); padding: 20px; border-radius: 10px; border-left: 5px solid #4CAF50;">
+            <p style="font-size: 1.2rem;">{q['display']}</p>
+            <p style="color: gray;">👉 {q['target']['translation']}</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # 4. 選項按鈕 (加入 Key 避免重複 ID 錯誤)
-    cols = st.columns(1) # 手機端建議一列一個大按鈕
+    # 選項按鈕
     for idx, opt in enumerate(q['options']):
-        if st.button(opt, use_container_width=True, disabled=q['answered'], key=f"cloze_opt_{idx}_{opt}"):
+        if st.button(opt, key=f"cl_opt_{idx}", use_container_width=True, disabled=q['answered']):
             st.session_state.cloze_q['answered'] = True
             st.session_state.cloze_q['user_choice'] = opt
             st.rerun()
 
- # ... 在結果反饋邏輯中加入
+    # 回答後的解析與語音
     if q['answered']:
         if q['user_choice'] == q['target']['word']:
-            st.success(f"太棒了！正確答案是 **{q['target']['word']}**")
-        else:
-            st.error(f"答錯了，正確單字應為：**{q['target']['word']}**")
-    
-    # 在詳解卡片上方加一個「手動播放」按鈕，方便使用者重複聽
-    # 只負責發聲的按鈕
-    if q['answered']:
-        # 使用 columns 讓按鈕不要佔滿整行，看起來更精緻
-        btn_col, _ = st.columns([1, 2])
-        with btn_col:
-            if st.button(f"🔊 播放發音", key="replay_audio"):
+            st.success(f"正確！單字是 **{q['target']['word']}**")
+            # 只有在剛答對時自動發音一次
+            if 'last_spoken' not in st.session_state or st.session_state.last_spoken != q['target']['word']:
                 speak(q['target']['word'])
-            # 這裡不放 st.rerun()，確保只觸發 speak 內的 JS
-        st.markdown(f"""
-            <div style="background: rgba(128,128,128,0.1); padding: 15px; border-radius: 10px; border: 1px solid rgba(128,128,128,0.2);">
-                <b style="color: var(--primary-color); font-size: 1.2rem;">{q['target']['word']}</b> {q['target'].get('phonetic', '')}<br>
-                <b>定義：</b>{q['target']['definition']}<br>
-                <b>構造：</b><code>{q['target']['breakdown']}</code>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        if st.button("下一題 ➡️", use_container_width=True):
-            # 清除題目狀態以觸發下次初始化
+                st.session_state.last_spoken = q['target']['word']
+        else:
+            st.error(f"答錯了，正確答案是：{q['target']['word']}")
+
+        # 詳解卡片
+        st.write(f" **定義：** {q['target']['definition']}")
+        st.write(f" **構造：** `{q['target']['breakdown']}`")
+
+        # 純發音按鈕
+        if st.button(" 播放讀音", key="audio_btn"):
+            speak(q['target']['word'])
+
+        if st.button("下一題 ➡️", type="primary", use_container_width=True):
             st.session_state.cloze_q = None
             st.rerun()
 def ui_search_page(data, selected_cat):
