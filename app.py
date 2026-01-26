@@ -479,31 +479,45 @@ def render_flashcard_mode(pool):
 
     if st.session_state.get('flipped'):
         st.info(f"💡 **定義：** {q['definition']} \n\n 🏗️ **拆解：** `{q['breakdown']}`")
-def render_flashcard_mode(pool):
-    # 檢查索引是否有效
-    if 'flash_idx' not in st.session_state or st.session_state.flash_idx is None or st.session_state.flash_idx >= len(pool):
-        st.session_state.flash_idx = random.randint(0, len(pool)-1)
-        st.session_state.flipped = False
+def render_multiple_choice_mode(pool):
+    # 確保資料結構完整，若不存在或切換領域導致過期則重置
+    if 'mc_q_data' not in st.session_state or st.session_state.mc_q_data is None:
+        target = random.choice(pool)
+        # 抓取干擾項
+        all_defs = [x['definition'] for x in pool if x['word'] != target['word']]
+        distractors = random.sample(all_defs, min(3, len(all_defs)))
+        options = distractors + [target['definition']]
+        random.shuffle(options)
+        
+        st.session_state.mc_q_data = {
+            "target": target, "options": options, "answered": False, "choice": None
+        }
 
-    q = pool[st.session_state.flash_idx]
+    q = st.session_state.mc_q_data
+    st.markdown(f"### 單字：**{q['target']['word']}**")
     
-    st.markdown(f"""
-        <div style="border: 2px solid var(--primary-color); border-radius: 15px; padding: 40px; text-align: center; background: var(--secondary-background-color);">
-            <div style="font-size: 2.5rem; font-weight: bold; color: var(--primary-color);">{q['word']}</div>
-        </div>
-    """, unsafe_allow_html=True)
+    for idx, opt in enumerate(q['options']):
+        if st.button(opt, key=f"mc_{idx}", use_container_width=True, disabled=q['answered']):
+            st.session_state.mc_q_data['answered'] = True
+            st.session_state.mc_q_data['choice'] = opt
+            if opt == q['target']['definition']:
+                speak(q['target']['word']) # 答對自動發音
+            st.rerun()
 
-    c1, c2 = st.columns(2)
-    if c1.button("🔍 答案 / 播放", use_container_width=True):
-        st.session_state.flipped = True
-        speak(q['word'])
-    if c2.button("➡️ 下一題", use_container_width=True):
-        st.session_state.flash_idx = random.randint(0, len(pool)-1)
-        st.session_state.flipped = False
-        st.rerun()
-
-    if st.session_state.get('flipped'):
-        st.info(f"💡 **定義：** {q['definition']} \n\n 🏗️ **拆解：** `{q['breakdown']}`")
+    if q['answered']:
+        if q['choice'] == q['target']['definition']:
+            st.success("正確！")
+        else:
+            st.error(f"錯誤，正確定義是：{q['target']['definition']}")
+        
+        # 詳解與發音
+        st.info(f" **構造：** `{q['target']['breakdown']}`")
+        if st.button("播放讀音", key="mc_audio"):
+            speak(q['target']['word'])
+        
+        if st.button("下一題 ➡️", type="primary"):
+            st.session_state.mc_q_data = None
+            st.rerun()
 def render_cloze_test_mode(pool):
     # 篩選題目
     pool_with_ex = [x for x in pool if x.get('example') and x['word'].lower() in x['example'].lower()]
@@ -526,7 +540,7 @@ def render_cloze_test_mode(pool):
 
     q = st.session_state.cloze_q
 
-    st.markdown(f"**{q['display']}**")
+    st.markdown(f" **{q['display']}** ")
     st.caption(f"👉 {q['target']['translation']}")
 
     for idx, opt in enumerate(q['options']):
@@ -541,7 +555,7 @@ def render_cloze_test_mode(pool):
         else: st.error(f"錯誤，答案是：{q['target']['word']}")
         
         # 純發音按鈕
-        if st.button("🔊 播放讀音", key="audio_cloze"):
+        if st.button("播放讀音", key="audio_cloze"):
             speak(q['target']['word'])
             
         if st.button("下一題 ➡️", type="primary"):
