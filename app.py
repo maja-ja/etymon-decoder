@@ -7,7 +7,7 @@ from io import BytesIO
 from gtts import gTTS
 
 # ==========================================
-# 1. 核心配置與 CSS (完全融合正式版風格)
+# 1. 核心配置與視覺美化 (CSS)
 # ==========================================
 st.set_page_config(page_title="Etymon Decoder v2.5", page_icon="🧩", layout="wide")
 
@@ -15,15 +15,31 @@ def inject_custom_css():
     st.markdown("""
         <style>
             html { font-size: 18px; }
-            .responsive-word { font-size: 5rem !important; font-weight: 800; color: #1E88E5; text-align: center; }
-            .responsive-phonetic { font-size: 1.5rem !important; color: #666; text-align: center; margin-bottom: 20px; }
+            /* 單字標題 */
+            .hero-word { 
+                font-size: 5rem !important; font-weight: 800; color: #1E88E5; 
+                text-align: center; margin-bottom: 0px; line-height: 1.2;
+            }
+            .hero-phonetic { 
+                font-size: 1.5rem !important; color: #666; 
+                text-align: center; margin-bottom: 20px; font-family: 'serif';
+            }
+            /* 語感驚喜盒 */
             .vibe-box {
                 background-color: #f0f7ff; padding: 25px; border-left: 10px solid #1E88E5;
                 border-radius: 15px; margin: 20px 0; animation: fadeIn 0.8s;
+                box-shadow: 2px 2px 12px rgba(0,0,0,0.05);
             }
+            /* 構造拆解框 */
             .breakdown-container {
-                font-family: 'Courier New', monospace; font-size: 1.8rem; background: #262730;
-                color: white; padding: 15px 30px; border-radius: 50px; display: inline-block; margin: 20px 0;
+                font-family: 'Courier New', monospace; font-size: 1.6rem; background: #262730;
+                color: #4CAF50; padding: 12px 25px; border-radius: 50px; 
+                display: inline-block; margin: 10px 0; border: 2px solid #4CAF50;
+            }
+            /* 數據看板 */
+            .metric-card {
+                background: white; padding: 20px; border-radius: 15px; 
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center;
             }
             @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         </style>
@@ -44,7 +60,7 @@ def speak(text, key_suffix=""):
         st.components.v1.html(f'<audio id="{unique_id}" autoplay="true" style="display:none;"><source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3"></audio><script>document.getElementById("{unique_id}").play();</script>', height=0)
     except Exception as e: st.error(f"語音錯誤: {e}")
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=30)
 def load_db():
     COL_NAMES = [
         'category', 'roots', 'meaning', 'word', 'breakdown', 
@@ -52,48 +68,54 @@ def load_db():
         'synonym_nuance', 'visual_prompt', 'social_status', 'emotional_tone', 'street_usage',
         'collocation', 'etymon_story', 'usage_warning', 'memory_hook', 'audio_tag'
     ]
-    # 正式版直接讀取 A:T (20 欄位)
-    SHEET_ID = "W1ADPyf5gtGdpIEwkxBEsaJ0bksYldf4AugoXnq6Zvg"
+    # 使用您的試算表 ID
+    SHEET_ID = '1W1ADPyf5gtGdpIEwkxBEsaJ0bksYldf4AugoXnq6Zvg'
     url = f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&range=A:T'
     try:
         df = pd.read_csv(url)
-        # 強制對齊 20 欄
-        if len(df.columns) < 20:
-            for col in COL_NAMES[len(df.columns):]: df[col] = ""
+        # 強制對齊 20 欄，若欄位不足則補齊
+        for i, col in enumerate(COL_NAMES):
+            if i >= len(df.columns): df[col] = ""
         df.columns = COL_NAMES
         return df.dropna(subset=['word']).fillna("").reset_index(drop=True)
-    except: return pd.DataFrame(columns=COL_NAMES)
+    except Exception as e:
+        st.error(f"資料庫連線失敗: {e}")
+        return pd.DataFrame(columns=COL_NAMES)
 
 # ==========================================
-# 3. 百科級顯示組件 (融合 native_vibe 解鎖邏輯)
+# 3. 百科級顯示組件 (融合正式版邏輯)
 # ==========================================
 
 def show_encyclopedia_card(row):
-    # --- 頂部：核心單字區 ---
-    st.markdown(f"<div class='responsive-word'>{row['word']}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='responsive-phonetic'>/{row['phonetic']}/</div>", unsafe_allow_html=True)
+    """美化顯示單一單字的百科卡片"""
+    # --- 頂部：單字 Hero 區 ---
+    st.markdown(f"<div class='hero-word'>{row['word']}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='hero-phonetic'>/{row['phonetic']}/</div>", unsafe_allow_html=True)
     
     col_a, col_b = st.columns([1, 4])
     with col_a:
-        if st.button("🔊 朗讀單字", key=f"btn_{row['word']}"): speak(row['word'], row['word'])
+        if st.button("🔊 朗讀", key=f"spk_{row['word']}", use_container_width=True):
+            speak(row['word'], row['word'])
     with col_b:
         st.markdown(f"<div class='breakdown-container'>{row['breakdown']}</div>", unsafe_allow_html=True)
 
     # --- 中間：定義與字根 ---
     c1, c2 = st.columns(2)
     with c1:
-        st.info(f"**🎯 定義：** {row['definition']}")
-        st.write(f"**📝 例句：** {row['example']}")
-        st.caption(f"翻譯：{row['translation']}")
+        st.info(f"**🎯 定義：**\n{row['definition']}")
+        st.write(f"**📝 例句：**\n{row['example']}")
+        st.caption(f"（{row['translation']}）")
     with c2:
-        st.success(f"**💡 字根：** {row['roots']} ({row['meaning']})")
-        st.markdown(f"**🪝 記憶點：** {row['memory_hook']}")
+        st.success(f"**💡 字根：** {row['roots']}\n\n**意義：** {row['meaning']}")
+        st.markdown(f"**🪝 記憶鉤子：**\n{row['memory_hook']}")
 
-    # --- 關鍵：語感解鎖邏輯 (正式版特色) ---
+    # --- 關鍵：語感驚喜包 (正式版特色) ---
     if row['native_vibe']:
-        if not st.session_state.get('vibe_unlocked', False):
+        # 檢查當前單字是否已解鎖 (使用 session_state 紀錄單字)
+        unlocked_key = f"unlocked_{row['word']}"
+        if not st.session_state.get(unlocked_key, False):
             if st.button("🎁 拆開語感驚喜包 (Unlock Native Vibe)", use_container_width=True, type="secondary"):
-                st.session_state.vibe_unlocked = True
+                st.session_state[unlocked_key] = True
                 st.balloons()
                 st.rerun()
         else:
@@ -104,122 +126,111 @@ def show_encyclopedia_card(row):
                 </div>
             """, unsafe_allow_html=True)
 
-    # --- 底部：百科擴充 (Tabs) ---
-    with st.expander("📚 更多深度百科資訊 (字源、社會階層、意象)"):
-        tab_a, tab_b, tab_c = st.tabs(["🏛️ 文化與字源", "👔 社會意象", "😎 街頭實戰"])
-        with tab_a:
+    # --- 底部：深度百科擴充 ---
+    with st.expander("📚 查看深度百科 (文化、社會、街頭實戰)"):
+        t1, t2, t3 = st.tabs(["🏛️ 字源文化", "👔 社會地位", "😎 街頭實戰"])
+        with t1:
             st.write(f"**📜 字源故事：** {row['etymon_story']}")
             st.write(f"**⚖️ 同義詞辨析：** {row['synonym_nuance']}")
-        with tab_b:
-            st.write(f"**🎨 視覺意象：** {row['visual_prompt']}")
-            st.write(f"**👔 社會地位感：** {row['social_status']}")
-            st.write(f"**🌡️ 情緒色調：** {row['emotional_tone']}")
-        with tab_c:
+        with t2:
+            st.write(f"**🎨 視覺提示：** {row['visual_prompt']}")
+            st.write(f"**👔 社會感：** {row['social_status']} | **🌡️ 情緒值：** {row['emotional_tone']}")
+        with t3:
             st.write(f"**🏙️ 街頭用法：** {row['street_usage']}")
             st.write(f"**🔗 常用搭配：** {row['collocation']}")
             if row['usage_warning']:
-                st.error(f"⚠️ 警告：{row['usage_warning']}")
+                st.error(f"⚠️ 使用警告：{row['usage_warning']}")
 
 # ==========================================
-# 4. 頁面整合
-# ==========================================
-
-def page_learn_search(df):
-    st.title("📖 學習與搜尋")
-    tab_card, tab_list = st.tabs(["隨機單字卡", "資料庫列表"])
-    
-    with tab_card:
-        # 分類過濾
-        cats = ["全部"] + sorted(df['category'].unique().tolist())
-        sel_cat = st.selectbox("選擇分類", cats, key="cat_sel")
-        f_df = df if sel_cat == "全部" else df[df['category'] == sel_cat]
-
-        if not f_df.empty:
-            if 'curr_w' not in st.session_state:
-                st.session_state.curr_w = f_df.sample(1).iloc[0].to_dict()
-                st.session_state.vibe_unlocked = False
-
-            if st.button("下一個單字 (Next Word) ➔", use_container_width=True, type="primary"):
-                st.session_state.curr_w = f_df.sample(1).iloc[0].to_dict()
-                st.session_state.vibe_unlocked = False
-                st.rerun()
-
-            show_encyclopedia_card(st.session_state.curr_w)
-
-    with tab_list:
-        search = st.text_input("🔍 搜尋單字或中文...", placeholder="輸入關鍵字...")
-        if search:
-            mask = df.apply(lambda r: search.lower() in str(r.values).lower(), axis=1)
-            st.dataframe(df[mask][['word', 'definition', 'roots', 'category']], use_container_width=True)
-        else:
-            st.dataframe(df[['word', 'definition', 'roots', 'category']].head(50), use_container_width=True)
-
-# ==========================================
-# 4. 頁面邏輯 (Pages)
+# 4. 頁面邏輯 (融合 Tabs 模式)
 # ==========================================
 
 def page_home(df):
     st.markdown("<h1 style='text-align: center;'>Etymon Decoder</h1>", unsafe_allow_html=True)
     st.write("---")
     c1, c2, c3 = st.columns(3)
-    c1.metric("總單字量", len(df))
-    c2.metric("分類主題", df['category'].nunique())
-    c3.metric("獨特字根", df['roots'].nunique())
-    st.info("👈 請從左側選單選擇「學習與搜尋」開始解碼。")
+    c1.metric("📚 總單字量", len(df))
+    c2.metric("🏷️ 分類主題", df['category'].nunique())
+    c3.metric("🧩 獨特字根", df['roots'].nunique())
+    st.write("---")
+    st.info("👈 請從左側選單進入「學習與搜尋」開啟您的語感之旅。")
 
 def page_learn_search(df):
     st.title("📖 學習與搜尋")
+    tab_card, tab_list = st.tabs(["🎲 隨機探索", "🔍 資料庫列表"])
     
-    # 搜尋功能
-    search_mode = st.radio("模式", ["快速查詢", "隨機探索"], horizontal=True)
-    
-    if search_mode == "快速查詢":
-        search_word = st.selectbox("請選擇或輸入單字", [""] + sorted(df['word'].tolist()))
-        if search_word:
-            row = df[df['word'] == search_word].iloc[0]
-            show_word_encyclopedia(row)
-    else:
-        if st.button("🎲 隨機來一個單字"):
-            st.session_state.random_word = df.sample(1).iloc[0].to_dict()
-        
-        if 'random_word' in st.session_state:
-            show_word_encyclopedia(st.session_state.random_word)
+    with tab_card:
+        # 1. 篩選
+        cats = ["全部"] + sorted(df['category'].unique().tolist())
+        sel_cat = st.selectbox("選擇學習分類", cats)
+        f_df = df if sel_cat == "全部" else df[df['category'] == sel_cat]
+
+        # 2. 隨機邏輯
+        if st.button("下一個單字 (Next Word) ➔", use_container_width=True, type="primary"):
+            st.session_state.curr_w = f_df.sample(1).iloc[0].to_dict()
+            st.rerun()
+
+        if 'curr_w' not in st.session_state and not f_df.empty:
+            st.session_state.curr_w = f_df.sample(1).iloc[0].to_dict()
+
+        if 'curr_w' in st.session_state:
+            show_encyclopedia_card(st.session_state.curr_w)
+
+    with tab_list:
+        search = st.text_input("🔍 搜尋單字、字根或中文定義...", placeholder="例如: 'bio' 或 '生命'...")
+        if search:
+            mask = df.apply(lambda r: search.lower() in str(r.values).lower(), axis=1)
+            display_df = df[mask]
+        else:
+            display_df = df.head(50)
+            
+        st.write(f"顯示 {len(display_df)} 筆結果")
+        st.dataframe(display_df[['word', 'definition', 'roots', 'category', 'native_vibe']], use_container_width=True)
 
 def page_quiz(df):
-    st.title("🧠 字根挑戰賽")
-    cat = st.selectbox("測驗範圍", df['category'].unique())
+    st.title("🧠 字根記憶挑戰")
+    cat = st.selectbox("選擇測驗範圍", df['category'].unique())
     pool = df[df['category'] == cat]
     
-    if st.button("開始測驗 / 下一題"):
+    if st.button("🎲 抽一題", use_container_width=True):
         st.session_state.q = pool.sample(1).iloc[0].to_dict()
         st.session_state.show_ans = False
 
     if 'q' in st.session_state:
-        st.subheader("請問這個定義對應哪個單字？")
+        st.markdown(f"### ❓ 請問這對應哪個單字？")
         st.info(st.session_state.q['definition'])
-        st.write(f"提示 (字根): {st.session_state.q['roots']}")
+        st.write(f"**提示 (字根):** {st.session_state.q['roots']} ({st.session_state.q['meaning']})")
         
-        if st.button("看答案"):
+        if st.button("揭曉答案"):
             st.session_state.show_ans = True
         
         if st.session_state.show_ans:
-            st.success(f"答案是：{st.session_state.q['word']}")
+            st.success(f"💡 答案是：**{st.session_state.q['word']}**")
             speak(st.session_state.q['word'], "quiz")
-            st.write(f"結構：{st.session_state.q['breakdown']}")
+            st.write(f"結構拆解：`{st.session_state.q['breakdown']}`")
 
 # ==========================================
-# 5. 主程式入口
+# 5. 主程式
 # ==========================================
 def main():
     inject_custom_css()
     df = load_db()
-    if df.empty: return
-
-    page = st.sidebar.radio("導航", ["首頁", "學習與搜尋", "測驗模式"])
     
-    if page == "首頁": page_home(df)
-    elif page == "學習與搜尋": page_learn_search(df)
-    elif page == "測驗模式": page_quiz(df)
+    if df.empty:
+        st.warning("資料庫目前是空的，請先在管理端完成雲端同步。")
+        return
+
+    st.sidebar.title("Etymon Decoder")
+    page = st.sidebar.radio("功能選單", ["首頁", "學習與搜尋", "測驗模式"])
+    st.sidebar.markdown("---")
+    st.sidebar.caption("v2.5 百科全書版 | 2026 Refactored")
+
+    if page == "首頁":
+        page_home(df)
+    elif page == "學習與搜尋":
+        page_learn_search(df)
+    elif page == "測驗模式":
+        page_quiz(df)
 
 if __name__ == "__main__":
     main()
