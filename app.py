@@ -10,38 +10,39 @@ from gtts import gTTS
 # 1. 核心配置與視覺美化 (CSS)
 # ==========================================
 st.set_page_config(page_title="Etymon Decoder v2.5", page_icon="🧩", layout="wide")
-
 def inject_custom_css():
     st.markdown("""
         <style>
-            html { font-size: 18px; }
-            /* 單字標題 */
-            .hero-word { 
-                font-size: 5rem !important; font-weight: 800; color: #1E88E5; 
-                text-align: center; margin-bottom: 0px; line-height: 1.2;
-            }
-            .hero-phonetic { 
-                font-size: 1.5rem !important; color: #666; 
-                text-align: center; margin-bottom: 20px; font-family: 'serif';
-            }
-            /* 語感驚喜盒 */
-            .vibe-box {
-                background-color: #f0f7ff; padding: 25px; border-left: 10px solid #1E88E5;
-                border-radius: 15px; margin: 20px 0; animation: fadeIn 0.8s;
-                box-shadow: 2px 2px 12px rgba(0,0,0,0.05);
-            }
-            /* 構造拆解框 */
+            /* 1. 核心字體：採用現代無襯線字體，確保英中混排完美 */
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Noto+Sans+TC:wght@500;700&display=swap');
+
             .breakdown-container {
-                font-family: 'Courier New', monospace; font-size: 1.6rem; background: #262730;
-                color: #4CAF50; padding: 12px 25px; border-radius: 50px; 
-                display: inline-block; margin: 10px 0; border: 2px solid #4CAF50;
+                /* 使用 Inter 處理英文，Noto Sans TC 處理中文 */
+                font-family: 'Inter', 'Noto Sans TC', sans-serif; 
+                font-size: 1.8rem !important; 
+                font-weight: 700;
+                letter-spacing: 1px;
+                
+                /* 漸層科技感背景 */
+                background: linear-gradient(135deg, #1E88E5 0%, #1565C0 100%);
+                color: #FFFFFF;
+                
+                /* 形狀與間距 */
+                padding: 12px 30px;
+                border-radius: 15px; /* 微圓角矩形，比膠囊型更具現代感 */
+                display: inline-block;
+                margin: 20px 0;
+                
+                /* 外陰影，讓它「浮」起來 */
+                box-shadow: 0 4px 15px rgba(30, 136, 229, 0.3);
+                border: 1px solid rgba(255, 255, 255, 0.2);
             }
-            /* 數據看板 */
-            .metric-card {
-                background: white; padding: 20px; border-radius: 15px; 
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center;
+
+            /* 針對內部的括號與加號做細微調整 */
+            .breakdown-container span.operator {
+                color: #BBDEFB; /* 讓 + 號顏色稍淡一點，突出主體 */
+                margin: 0 8px;
             }
-            @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         </style>
     """, unsafe_allow_html=True)
 
@@ -97,7 +98,8 @@ def show_encyclopedia_card(row):
         if st.button("🔊 朗讀", key=f"spk_{row['word']}", use_container_width=True):
             speak(row['word'], row['word'])
     with col_b:
-        st.markdown(f"<div class='breakdown-container'>{row['breakdown']}</div>", unsafe_allow_html=True)
+        styled_breakdown = row['breakdown'].replace("+", "<span class='operator'>+</span>")
+        st.markdown(f"<div class='breakdown-container'>{styled_breakdown}</div>", unsafe_allow_html=True)
 
     # --- 中間：定義與字根 ---
     c1, c2 = st.columns(2)
