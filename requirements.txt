@@ -2,5 +2,3 @@ streamlit
 streamlit-wheel-picker
 pandas
 numpy
-gTTS
-st-gsheets-connection
