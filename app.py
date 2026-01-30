@@ -1,73 +1,65 @@
 import streamlit as st
-from streamlit_wheel_picker import wheel_picker
 
-# 設定網頁佈局
-st.set_page_config(page_title="Pino Logic Matrix", layout="centered")
-
-# --- 核心邏輯函數 ---
+# --- 核心通用函數 ---
 def n_m_o_logic(n, m, o):
     """
-    通用函數：處理第 n 欄, 第 m 列, 第 o 層
-    對應你筆記中的矩陣映射與物理推演
+    通用邏輯：處理第 n 欄, 第 m 列, 第 o 層
+    將來擴充 n+i, m+j, o+l 只需要修改調用範圍
     """
-    # 模擬計算：o 層決定了基礎權重，n, m 決定了座標偏移
-    base_val = (o * 10)
-    result = f"P-{base_val + n + m}"
-    return result
+    # 這裡實作你筆記中的物理與感官邏輯映射
+    if o == 1: # 假設第 1 層是結構層
+        return f"結構(A/B/C): {n}-{m}"
+    elif o == 2: # 假設第 2 層是感官渲染
+        return f"感官(動/靜): {n*o}"
+    else: # 假設第 3 層以上是物理公式
+        return f"F = {n} * {m} * {o} (N)"
 
-# --- UI 介面設計 ---
-st.title("多維矩陣系統：滾輪導航")
+# --- UI 佈局 ---
+st.set_page_config(layout="wide")
 
-# 模擬蘋果風格的中央控制區
-col1, col2, col3 = st.columns([1, 1, 1])
+st.markdown("""
+    <style>
+    .stSlider [data-baseweb="slider"] {
+        width: 80%;
+        margin: 0 auto;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-with col2:
-    st.write("### 選擇 $o$ 層 (Layer)")
-    # 使用 wheel_picker 模擬蘋果滑動感
-    # 將 o 層定義為從 1 到 30 (對應你筆記 1/30 的編號)
-    layer_options = [f"Layer {i:02d}" for i in range(1, 31)]
-    selected_layer_str = wheel_picker(
-        key="layer_picker",
-        options=layer_options,
-        default_index=0
-    )
-    # 解析出數字 o
-    current_o = int(selected_layer_str.split(" ")[1])
+st.title("Pino 邏輯建模：n x m x o 多維系統")
+
+# --- 層指示器 (O 層控制) ---
+# 用蘋果風格的 slider 模擬 o 軸
+st.subheader("層指示器 (o-axis)")
+o_selector = st.select_slider(
+    "滑動以切換不同深度的邏輯層 (o)",
+    options=[i for i in range(1, 31)],
+    value=1
+)
 
 st.divider()
 
-# --- 矩陣顯示區 ---
-st.subheader(f"當前座標平面：$O$ 軸第 {current_o} 層")
+# --- 矩陣顯示區 (N 欄 x M 列) ---
+st.header(f"當前觀測面：第 {o_selector} 層")
 
-# 定義矩陣規模 (可擴充 n, m)
+# 定義維度 (方便未來 n+i, m+j 擴充)
 rows_m = 3
 cols_n = 3
 
-# 建立畫布
 for m in range(1, rows_m + 1):
     cols = st.columns(cols_n)
     for n in range(1, cols_n + 1):
         with cols[n-1]:
-            # 調用通用函數
-            node_data = n_m_o_logic(n, m, current_o)
+            # 這裡就是你要求的：每一格都調用同一個函數
+            result = n_m_o_logic(n, m, o_selector)
             
-            # 渲染卡片 (包含你筆記中的 A, B, C 概念)
             with st.container(border=True):
-                st.markdown(f"**$C_{n}, R_{m}$**")
-                st.markdown(f"## {node_data}")
-                
-                # 根據 o 層變動展示不同屬性 (對應感官渲染)
-                if current_o < 10:
-                    st.caption("🟢 結構解析 (ABC)")
-                elif current_o < 20:
-                    st.caption("🔵 感官渲染 (動/靜)")
-                else:
-                    st.caption("🔴 物理公式 (F/v/r)")
+                st.write(f"**座標 ({n}, {m}, {o_selector})**")
+                st.info(result)
 
-# --- 底部擴充功能 ---
-with st.expander("查看 $n+i, m+j, o+l$ 擴充邏輯"):
-    st.write("""
-    1. **n_m_o() 通用化**: 所有的運算都封裝在函數內，不依賴固定索引。
-    2. **動態渲染**: 使用迴圈產生 `st.columns`，只需更改 `rows_m` 或 `cols_n` 即可無限擴充。
-    3. **狀態保存**: 滾輪選取的 $o$ 值會保存在 `session_state` 中，方便跨層計算。
-    """)
+# --- 邏輯示範圖解 ---
+st.divider()
+st.subheader("系統架構說明")
+st.write("這是一個三維張量結構的切片展示：")
+# 插入圖解以幫助解釋 n x m x o 的幾何關係
+#
