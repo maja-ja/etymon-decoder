@@ -1,49 +1,52 @@
 import streamlit as st
-import pandas as pd
 
-# 設置頁面標題，呼應你的影片標題
-st.set_page_config(page_title="Etymon Decoder Matrix", layout="wide")
+st.set_page_config(page_title="Etymon Matrix Editor", layout="centered")
 
-st.title("🧩 Etymon Decoder: 九宮格解析矩陣")
-st.write("根據設計者 PINO 的結構解析與感官渲染模型")
+st.title("🧩 詞源九宮格編輯矩陣")
+st.write("點選下方按鈕，將左側輸入的內容填入對應的座標。")
 
-# --- 側邊欄：輸入區 ---
-st.sidebar.header("輸入單字結構")
-prefix = st.sidebar.text_input("A: 核心/字首 (X)", value="re-")
-root = st.sidebar.text_input("B: 連結/字根 (Y)", value="voke")
-suffix = st.sidebar.text_input("C: 邊界/詞尾 (Z)", value="-ation")
+# --- 側邊欄：內容輸入區 ---
+st.sidebar.header("內容設置")
+input_text = st.sidebar.text_input("要填入的內容 (如：字根、感官描述)", value="Core")
 
-# --- 邏輯運算：模擬物理公式運算 ---
-# 筆記提到 F = m * v... 這裡我們模擬一個「語義衝力 (Semantic Force)」
-semantic_mass = len(root)
-semantic_velocity = len(prefix)
-force = semantic_mass * semantic_velocity
+# 初始化 Session State (確保重新整理時資料不消失)
+if 'matrix_data' not in st.session_state:
+    # 建立 3x3 的空矩陣
+    st.session_state.matrix_data = [["" for _ in range(3)] for _ in range(3)]
 
-# --- 顯示區：九宮格矩陣 ---
-st.subheader(f"單字解析：{prefix}{root}{suffix}")
-st.metric(label="語義衝力 (Force = m * v)", value=f"{force} N", help="模擬筆記中的 F=ma 邏輯")
+# 定義坐標標籤 (呼應筆記中的 X, Y, Z)
+cols_label = ["X", "Y", "Z"]
+rows_label = ["1 (靜)", "2 (動)", "3 (感)"]
 
-# 定義縱軸與橫軸
-rows = ["靜態 (顏色/形狀/位置)", "動態 (速度/阻力/方向)", "感覺 (心理/有序無序)"]
-cols = [f"A: {prefix}", f"B: {root}", f"C: {suffix}"]
+# --- 主畫面：九宮格佈局 ---
+# 建立表頭
+header_cols = st.columns([1, 2, 2, 2])
+header_cols[1].markdown("**X (核心/字首)**")
+header_cols[2].markdown("**Y (連結/字根)**")
+header_cols[3].markdown("**Z (邊界/詞尾)**")
 
-# 建立九宮格佈局
+# 建立 3x3 矩陣
 for i in range(3):
-    columns = st.columns(3)
+    cols = st.columns([1, 2, 2, 2])
+    cols[0].write(f"**{rows_label[i]}**") # 縱軸標籤
+    
     for j in range(3):
-        with columns[j]:
-            # 根據筆記 [5] 的感官描述填入邏輯
-            content = ""
-            if i == 0: # 靜態
-                content = f"📍 定位 {cols[j]} 的視覺屬性"
-            elif i == 1: # 動態
-                content = f"⚡ 分析 {cols[j]} 的運動方向"
-            else: # 感覺
-                content = f"🧠 {cols[j]} 產生的心理共鳴"
+        with cols[j+1]:
+            # 顯示當前格子的內容
+            current_val = st.session_state.matrix_data[i][j]
+            box_label = f"{current_val}" if current_val else "➕ 點擊填入"
             
-            st.info(f"**{rows[i]}**\n\n{content}")
+            # 使用按鈕作為觸發器
+            if st.button(box_label, key=f"btn_{i}_{j}", use_container_width=True):
+                st.session_state.matrix_data[i][j] = input_text
+                st.rerun() # 立即重新渲染顯示更新
 
-# --- 底部：數據洞察模擬 ---
+# --- 功能操作 ---
 st.divider()
-st.subheader("📊 流量洞察回饋 (模擬)")
-st.write("根據你關閉帳號前的數據，這類結構解析最受 25-44 歲用戶歡迎。")
+if st.button("清除所有格子"):
+    st.session_state.matrix_data = [["" for _ in range(3)] for _ in range(3)]
+    st.rerun()
+
+# --- 數據導出 (模擬筆記結構) ---
+with st.expander("查看矩陣 JSON 數據"):
+    st.json(st.session_state.matrix_data)
