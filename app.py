@@ -85,7 +85,7 @@ def main():
     df = load_physics_db()
 
     # 側邊欄控制
-    st.sidebar.title("⚛️ Pino 物理建模")
+    st.sidebar.title("⚛️ P 物理建模")
     o_layer = st.sidebar.select_slider(
         "切換觀測深度 (o-axis)",
         options=[1, 2, 3],
