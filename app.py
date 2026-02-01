@@ -2,113 +2,66 @@ import streamlit as st
 import pandas as pd
 
 # ==========================================
-# 1. 核心 CSS (包含側邊欄按鈕優化)
+# 1. 核心 CSS (完全復刻 Etymon Decoder 視覺)
 # ==========================================
-st.set_page_config(page_title="Physics Decoder v2.5", page_icon="⚛️", layout="wide")
+st.set_page_config(page_title="Physics Decoder", page_icon="⚛️", layout="wide")
 
-def inject_physics_style():
+def inject_etymon_style():
     st.markdown("""
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&family=Noto+Sans+TC:wght@500;900&display=swap');
             
-            /* 全域設定 */
             html, body, [class*="css"] { font-family: 'Noto Sans TC', sans-serif; }
 
-            /* 側邊欄 Era Gateway 按鈕風格 */
-            .stSidebar [data-testid="stVerticalBlock"] > div:nth-child(1) {
-                background-color: #f0f2f6;
-                padding: 10px;
-                border-radius: 10px;
-            }
-            
-            /* 模擬 Era Gateway 分區按鈕樣式 */
-            .section-btn {
-                width: 100%;
-                padding: 10px;
-                margin: 5px 0;
-                border: 1px solid #ddd;
-                border-radius: 8px;
-                background: white;
-                text-align: center;
-                cursor: pointer;
-                font-weight: bold;
-                transition: 0.3s;
-            }
-            .section-btn:hover { background: #E3F2FD; border-color: #1E88E5; }
-
-            /* 主畫面內容樣式 (復刻 Etymon) */
+            /* 標題與語音感標籤 */
             .main-word { font-size: 5rem; font-weight: 900; color: #1E88E5; margin-bottom: 0px; letter-spacing: -2px; }
-            .phonetic { font-size: 1.5rem; color: #666; font-family: 'Fira Code', monospace; margin-bottom: 20px; }
-            .dim-pill { 
-                background: #E3F2FD; color: #1565C0; padding: 4px 15px; border-radius: 50px; 
-                font-size: 0.9rem; font-weight: bold; border: 1px solid #BBDEFB;
-            }
+            .unit-text { font-size: 1.5rem; color: #666; font-family: 'Fira Code', monospace; margin-bottom: 20px; }
 
-            /* 物理塊 (Roots) */
+            /* 物理字根拆解塊 (核心視覺) */
             .root-container { display: flex; align-items: center; margin: 30px 0; flex-wrap: wrap; }
             .root-block {
                 background: linear-gradient(135deg, #1E88E5 0%, #1565C0 100%);
-                color: white; padding: 15px 25px; border-radius: 12px;
+                color: white; padding: 15px 30px; border-radius: 12px;
                 font-size: 1.8rem; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             }
             .root-operator { font-size: 2rem; color: #1E88E5; margin: 0 15px; font-weight: bold; }
 
-            /* 卡片風格 */
+            /* 內容資訊卡 */
             .info-card {
                 background: #F8F9FA; border-left: 5px solid #1E88E5;
                 padding: 20px; border-radius: 8px; margin: 10px 0;
             }
+            .section-label { font-weight: bold; color: #1565C0; margin-bottom: 5px; font-size: 0.9rem; }
+            
+            /* 側邊欄 Era Gateway 風格按鈕 */
+            .stButton > button {
+                width: 100%; border-radius: 8px; border: 1px solid #ddd;
+                background-color: white; transition: 0.3s; font-weight: bold;
+            }
+            .stButton > button:hover { border-color: #1E88E5; background-color: #E3F2FD; }
         </style>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 資料處理
+# 2. 資料讀取
 # ==========================================
 @st.cache_data(ttl=30)
 def load_db():
     SHEET_URL = "https://docs.google.com/spreadsheets/d/1LeI3C5iHf7_bVEdGG2PaB3WPpbveyYOT3E3OBrY0TWg/export?format=csv"
     try:
-        df = pd.read_csv(SHEET_URL)
-        return df.fillna("")
+        return pd.read_csv(SHEET_URL).fillna("")
     except:
-        return pd.DataFrame({'word':['Error'], 'roots':['N/A'], 'category':['Error']})
+        return pd.DataFrame({'word':['Error'], 'category':['Error']})
 
 # ==========================================
-# 3. 側邊欄：分區按鈕設計 (Era Gateway 復刻)
+# 3. 渲染主介面 (拿掉維度分析)
 # ==========================================
-def render_sidebar(df):
-    st.sidebar.title("⚛️ Physics Decoder")
-    
-    st.sidebar.subheader("領域分區")
-    # 這裡模擬 Era Gateway 的按鈕群組
-    categories = ["全部"] + list(df['category'].unique())
-    
-    # 使用 st.radio 並隱藏原始樣式，或者直接用 selectbox (Streamlit 限制，按鈕觸發較難保持狀態)
-    # 為了穩定性，我們使用 selectbox 並優化視覺感，或者使用 Button 觸發
-    selected_cat = st.sidebar.selectbox("選擇物理領域", categories)
-    
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("觀測深度 (o-axis)")
-    o_layer = st.sidebar.select_slider(
-        "切換維度",
-        options=[1, 2, 3],
-        format_func=lambda x: {1:"基因碼", 2:"定義層", 3:"語感層"}[x]
-    )
-    
-    st.sidebar.markdown("---")
-    search = st.sidebar.text_input("🔍 搜尋物理量")
-    
-    return selected_cat, o_layer, search
-
-# ==========================================
-# 4. 主畫面渲染
-# ==========================================
-def render_content(row, o_layer):
+def render_physics_interface(row, o_layer):
+    # 標題
     st.markdown(f"<div class='main-word'>{row['word']}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='phonetic'>// {row['phonetic']} //</div>", unsafe_allow_html=True)
-    st.markdown(f"<span class='dim-pill'>🧬 基因碼: {row['roots']}</span>", unsafe_allow_html=True)
+    st.markdown(f"<div class='unit-text'>// 標準單位: {row['phonetic']} //</div>", unsafe_allow_html=True)
 
-    # 拆解區
+    # 物理拆解塊
     breakdown = str(row['breakdown'])
     op = "×" if "*" in breakdown else "÷" if "/" in breakdown else ""
     parts = breakdown.replace("*", "|").replace("/", "|").split("|")
@@ -121,43 +74,67 @@ def render_content(row, o_layer):
     html += "</div>"
     st.markdown(html, unsafe_allow_html=True)
 
-    # 卡片內容
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        if o_layer == 1:
-            st.markdown(f"<div class='info-card'><b>維度分析：</b><br>{row['roots']}</div>", unsafe_allow_html=True)
-        elif o_layer == 2:
-            st.markdown(f"<div class='info-card'><b>核心定義：</b><br>{row['definition']}</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='info-card'><b>公式：</b><br><code>{row['example']}</code></div>", unsafe_allow_html=True)
-        else:
-            st.markdown(f"<div class='info-card'><b>感官語感：</b><br>{row['vibe']}</div>", unsafe_allow_html=True)
-    with c2:
-        st.markdown(f"<div class='info-card' style='border-left-color:orange;'><b>記憶鉤子：</b><br>{row['memory_hook']}</div>", unsafe_allow_html=True)
+    # 內容卡片 (根據 o_layer 切換：定義層 vs 語感層)
+    col1, col2 = st.columns([1.5, 1])
+    with col1:
+        if o_layer == 2: # 定義層
+            st.markdown(f"""
+                <div class='info-card'>
+                    <div class='section-label'>🎯 定義</div>{row['definition']}
+                </div>
+                <div class='info-card'>
+                    <div class='section-label'>📖 常用公式</div><code>{row['example']}</code>
+                </div>
+            """, unsafe_allow_html=True)
+        else: # 語感層 (預設與 layer 3)
+            st.markdown(f"""
+                <div class='info-card'>
+                    <div class='section-label'>🌊 語感</div>{row['vibe']}
+                </div>
+            """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown(f"""
+            <div class='info-card' style='border-left-color: #FFA000;'>
+                <div class='section-label'>💡 記憶鉤子</div>{row['memory_hook']}
+            </div>
+        """, unsafe_allow_html=True)
 
 # ==========================================
-# 5. 執行
+# 4. 主程式 (側邊欄分區按鈕)
 # ==========================================
 def main():
-    inject_physics_style()
+    inject_etymon_style()
     df = load_db()
-    
-    cat, o, search = render_sidebar(df)
-    
-    # 篩選數據
-    filtered_df = df if cat == "全部" else df[df['category'] == cat]
-    
-    if search:
-        filtered_df = filtered_df[filtered_df['word'].str.contains(search, case=False)]
 
+    # 側邊欄
+    st.sidebar.title("⚛️ Physics Decoder")
+    
+    st.sidebar.write("### 領域分區 (Era Gateway)")
+    categories = ["全部"] + list(df['category'].unique())
+    
+    # 使用按鈕或 selectbox 模擬分區
+    selected_cat = st.sidebar.selectbox("選擇領域", categories)
+    
+    st.sidebar.markdown("---")
+    o_layer = st.sidebar.select_slider(
+        "觀測深度 (o-axis)",
+        options=[2, 3], # 刪除 layer 1 (維度層)
+        format_func=lambda x: {2: "定義/公式", 3: "感官語感"}[x]
+    )
+
+    # 數據篩選
+    filtered_df = df if selected_cat == "全部" else df[df['category'] == selected_cat]
+
+    st.sidebar.markdown("---")
     if st.sidebar.button("下一個物理量 ➜", use_container_width=True):
-        if not filtered_df.empty:
-            st.session_state.current = filtered_df.sample(1).iloc[0].to_dict()
+        st.session_state.current_phys = filtered_df.sample(1).iloc[0].to_dict()
 
-    if 'current' not in st.session_state and not filtered_df.empty:
-        st.session_state.current = filtered_df.iloc[0].to_dict()
+    if 'current_phys' not in st.session_state and not filtered_df.empty:
+        st.session_state.current_phys = filtered_df.iloc[0].to_dict()
 
-    if 'current' in st.session_state:
-        render_content(st.session_state.current, o)
+    if 'current_phys' in st.session_state:
+        render_physics_interface(st.session_state.current_phys, o_layer)
 
 if __name__ == "__main__":
     main()
