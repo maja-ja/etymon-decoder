@@ -87,24 +87,20 @@ def load_physics_db():
 # ==========================================
 def render_physics_card(row, o_val):
     st.markdown(f"<div class='hero-title'>{row['word']}</div>", unsafe_allow_html=True)
-    
-    # 顯示維度標籤
     st.markdown(f"<span class='dimension-tag'>Dim: {row['roots']}</span>", unsafe_allow_html=True)
     
-    # 物理字根拆解 (Breakdown)
+    # 這裡必須用 st.markdown 並開啟 unsafe_allow_html
     styled_breakdown = str(row['breakdown']).replace("*", "<span class='operator'>×</span>").replace("/", "<span class='operator'>÷</span>")
     st.markdown(f"<div class='physics-breakdown'>{styled_breakdown}</div>", unsafe_allow_html=True)
 
-    # N-M-O 動態層顯示
+    # N-M-O 動態層：建議改用不同顏色區分深度
     display_content = n_m_o_physics_engine(row, o_val)
-    st.info(display_content)
-
-    c1, c2 = st.columns(2)
-    with c1:
-        st.success(f"**📖 實戰公式：**\n{row['example']}")
-    with c2:
-        st.warning(f"**🪝 記憶鉤子：**\n{row['hook']}")
-
+    if o_val == 1:
+        st.code(display_content, language="python") # 密碼層用代碼框
+    elif o_val == 2:
+        st.info(display_content) # 定義層用藍框
+    else:
+        st.warning(display_content) # 語感層用黃框
 # ==========================================
 # 5. 主程式
 # ==========================================
