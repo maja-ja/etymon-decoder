@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 # ==========================================
-# 1. 核心 CSS (精簡 UI，確保 HTML 渲染)
+# 1. 核心視覺配置 (修正 HTML 標籤渲染問題)
 # ==========================================
 st.set_page_config(page_title="Physics Decoder", page_icon="⚛️", layout="wide")
 
@@ -10,7 +10,7 @@ def inject_physics_css():
     st.markdown("""
         <style>
             .physics-breakdown {
-                font-family: monospace;
+                font-family: 'Courier New', monospace;
                 font-size: 2.2rem !important;
                 background: linear-gradient(135deg, #FF6F00 0%, #E65100 100%);
                 color: #FFFFFF;
@@ -18,97 +18,102 @@ def inject_physics_css():
                 border-radius: 15px;
                 display: inline-block;
                 margin: 15px 0;
+                box-shadow: 0 4px 15px rgba(230, 81, 0, 0.3);
             }
             .operator { color: #FFE0B2; margin: 0 10px; font-weight: bold; }
             .hero-title { font-size: 4.5rem; font-weight: 900; color: #E65100; margin-bottom: -10px; }
             .dimension-tag { 
                 background: #FFF3E0; color: #E65100; 
                 padding: 4px 12px; border-radius: 50px; font-weight: bold;
+                border: 1px solid #FFE0B2;
             }
         </style>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 資料讀取 (僅保留雲端連結邏輯)
+# 2. 資料讀取邏輯 (對齊你的 Google Sheet 欄位)
 # ==========================================
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=30)
 def load_physics_db():
-    # 填入你的 Google Sheet CSV 連結
-    SHEET_URL = "https://docs.google.com/spreadsheets/d/1LeI3C5iHf7_bVEdGG2PaB3WPpbveyYOT3E3OBrY0TWg/edit?gid=0#gid=0"
+    # 請替換為你的 Google Sheet CSV 連結
+    SHEET_URL = "https://docs.google.com/spreadsheets/d/1LeI3C5iHf7_bVEdGG2PaB3WPpbveyYOT3E3OBrY0TWg/export?format=csv"
     try:
-        return pd.read_csv(SHEET_URL).fillna("")
+        df = pd.read_csv(SHEET_URL)
+        return df.fillna("")
     except:
-        st.error("❌ 無法讀取資料庫，請檢查 Google Sheet 權限或連結。")
-        return pd.DataFrame()
+        # 僅在讀取失敗時顯示的開發測試數據
+        return pd.DataFrame({
+            'word': ['Force (F)'],
+            'roots': ['[1, 1, -2, 0, 0, 0, 0]'],
+            'breakdown': ['Mass * Accel'],
+            'definition': ['改變物體運動狀態的作用'],
+            'phonetic': ['Newton'],
+            'example': ['F = ma'],
+            'vibe': ['推動重物時的肌肉緊繃感'],
+            'memory_hook': ['牛頓第二定律的核心']
+        })
 
 # ==========================================
-# 3. 渲染邏輯 (o-axis 切片)
+# 3. NMO 渲染引擎 (o-axis)
 # ==========================================
 def render_physics_card(row, o_layer):
-    # 1. 抓取資料（使用 get 預防 Key 錯誤）
-    word = row.get('word', 'Unknown')
-    roots = row.get('roots', '[0,0,0,0,0,0,0]')
-    unit = row.get('phonetic', '')  # 在物理版中，phonetic 欄位拿來放單位 (如 Newton)
-    breakdown = row.get('breakdown', '')
-    definition = row.get('definition', '')
-    example = row.get('example', '')
-    vibe = row.get('vibe', '')
-    hook = row.get('memory_hook', row.get('hook', '')) # 兼容兩個可能的欄位名
-
-    # 2. 標題與單位渲染
-    st.markdown(f"<div class='hero-title'>{word}</div>", unsafe_allow_html=True)
-    if unit:
-        st.markdown(f"<div style='font-size: 1.5rem; color: #666; margin-bottom: 10px;'>標準單位: {unit}</div>", unsafe_allow_html=True)
-    st.markdown(f"<span class='dimension-tag'>基因碼: {roots}</span>", unsafe_allow_html=True)
+    # 標題區
+    st.markdown(f"<div class='hero-title'>{row.get('word', 'N/A')}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='color: #666; font-size: 1.2rem; margin-bottom: 8px;'>單位：{row.get('phonetic', 'N/A')}</div>", unsafe_allow_html=True)
+    st.markdown(f"<span class='dimension-tag'>基因碼: {row.get('roots', 'N/A')}</span>", unsafe_allow_html=True)
     
-    # 3. 結構拆解渲染
-    styled_breakdown = str(breakdown).replace("*", "<span class='operator'>×</span>").replace("/", "<span class='operator'>÷</span>")
+    # 結構拆解 (核心：使用 markdown 配合 HTML 渲染標籤)
+    breakdown_text = str(row.get('breakdown', ''))
+    styled_breakdown = breakdown_text.replace("*", "<span class='operator'>×</span>").replace("/", "<span class='operator'>÷</span>")
     st.markdown(f"<div class='physics-breakdown'>{styled_breakdown}</div>", unsafe_allow_html=True)
 
-    # 4. N-M-O 觀測深度切換
     st.divider()
+
+    # O-Axis 分層邏輯
     if o_layer == 1:
-        st.info(f"🧬 **[基因維度層]**\n\n底層代碼：`{roots}`\n\n這代表了該量在質量、長度、時間等 7 個基本維度的組成。")
+        st.info(f"🧬 **[基因維度層]**\n\n底層維度組成：`{row.get('roots', '')}`\n\n這反映了該物理量在宇宙基本度量（M, L, T...）中的位置。")
     elif o_layer == 2:
-        st.success(f"📚 **[物理定義層]**\n\n**定義：** {definition}\n\n**常用公式：** `{example}`")
+        st.success(f"📚 **[物理定義層]**\n\n**定義：** {row.get('definition', '')}\n\n**標準公式：** `{row.get('example', '')}`")
     else:
-        st.warning(f"🌊 **[感官語感層]**\n\n**直覺語感：** {vibe}\n\n**記憶鉤子：** {hook}")
+        st.warning(f"🌊 **[感官語感層]**\n\n**直覺語感：** {row.get('vibe', '')}\n\n**記憶點：** {row.get('memory_hook', '')}")
 
 # ==========================================
-# 4. 主程式 (刪除多餘 Menu，直球對決)
+# 4. 主程式流程
 # ==========================================
 def main():
     inject_physics_css()
     df = load_physics_db()
 
-    if df.empty: return
-
-    # 側邊欄：僅保留 NMO 控制
-    st.sidebar.title("⚛️ Pino 建模")
+    # 側邊欄控制
+    st.sidebar.title("⚛️ Pino 物理建模")
     o_layer = st.sidebar.select_slider(
         "切換觀測深度 (o-axis)",
         options=[1, 2, 3],
-        format_func=lambda x: ["", "基因碼", "定義層", "語感層"][x]
+        format_func=lambda x: {1: "基因碼", 2: "定義層", 3: "語感層"}[x]
     )
-    
-    search_query = st.sidebar.text_input("🔍 搜尋物理量 (或輸入維度)")
 
-    # 主畫面
-    if search_query:
-        mask = df.apply(lambda r: search_query.lower() in str(r.values).lower(), axis=1)
-        results = df[mask]
-        if not results.empty:
-            render_physics_card(results.iloc[0], o_layer)
+    st.sidebar.markdown("---")
+    search = st.sidebar.text_input("🔍 搜尋物理量 (例如: Force)")
+
+    # 主畫面邏輯
+    if search:
+        # 模糊搜尋
+        mask = df.apply(lambda r: search.lower() in str(r.values).lower(), axis=1)
+        res = df[mask]
+        if not res.empty:
+            render_physics_card(res.iloc[0], o_layer)
         else:
-            st.write("查無此量，請確認輸入。")
+            st.error("查無此物理量，請檢查拼字。")
     else:
-        if st.button("🎲 隨機觀測下一量"):
-            st.session_state.current_phys = df.sample(1).iloc[0].to_dict()
-        
-        if 'current_phys' in st.session_state:
-            render_physics_card(st.session_state.current_phys, o_layer)
+        # 預設隨機探索模式
+        if st.button("🎲 隨機觀測下一物理量"):
+            st.session_state.p_data = df.sample(1).iloc[0].to_dict()
+            st.rerun()
+            
+        if 'p_data' in st.session_state:
+            render_physics_card(st.session_state.p_data, o_layer)
         else:
-            st.write("請從左側搜尋或點擊隨機觀測。")
+            st.write("👈 請從左側搜尋，或點擊隨機觀測。")
 
 if __name__ == "__main__":
     main()
