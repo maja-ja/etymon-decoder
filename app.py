@@ -2,112 +2,168 @@ import streamlit as st
 import pandas as pd
 
 # ==========================================
-# 1. Core UI Configuration (English Aesthetic)
+# 1. Etymon 風格 CSS 注入
 # ==========================================
-st.set_page_config(page_title="Physics Decoder", page_icon="⚛️", layout="wide")
+st.set_page_config(page_title="Physics Decoder v2.5", page_icon="⚛️", layout="wide")
 
-def inject_physics_css():
+def inject_etymon_style():
     st.markdown("""
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&family=Noto+Sans+TC:wght@500;900&display=swap');
             
-            .physics-breakdown {
-                font-family: 'Fira Code', monospace;
-                font-size: 2.5rem !important;
-                background: linear-gradient(135deg, #FF6F00 0%, #E65100 100%);
-                color: #FFFFFF;
-                padding: 20px 40px;
-                border-radius: 20px;
-                display: inline-block;
-                margin: 20px 0;
-                box-shadow: 0 10px 30px rgba(230, 81, 0, 0.3);
-                letter-spacing: 2px;
+            /* 全域字體設定 */
+            html, body, [class*="css"] {
+                font-family: 'Noto Sans TC', sans-serif;
             }
-            .operator { color: #FFE0B2; margin: 0 15px; font-weight: bold; }
-            .hero-title { font-size: 5rem; font-weight: 900; color: #E65100; line-height: 1; }
-            .unit-sub { font-size: 1.5rem; color: #666; margin-top: 10px; }
-            .dimension-tag { 
-                background: #FFF3E0; color: #E65100; 
-                padding: 6px 18px; border-radius: 50px; font-weight: bold;
-                border: 1px solid #FFE0B2; font-family: 'Fira Code', monospace;
+
+            /* 標題與標籤 */
+            .main-word { font-size: 5rem; font-weight: 900; color: #1E88E5; margin-bottom: 0px; letter-spacing: -2px; }
+            .phonetic { font-size: 1.5rem; color: #666; font-family: 'Fira Code', monospace; margin-bottom: 20px; }
+            .dim-pill { 
+                background: #E3F2FD; color: #1565C0; padding: 4px 15px; border-radius: 50px; 
+                font-size: 0.9rem; font-weight: bold; border: 1px solid #BBDEFB;
             }
+
+            /* 字根拆解塊 (最重要介面) */
+            .root-container { display: flex; align-items: center; margin: 30px 0; }
+            .root-block {
+                background: linear-gradient(135deg, #1E88E5 0%, #1565C0 100%);
+                color: white; padding: 15px 30px; border-radius: 12px;
+                font-size: 1.8rem; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            }
+            .root-operator { font-size: 2rem; color: #1E88E5; margin: 0 15px; font-weight: bold; }
+
+            /* 內容卡片 */
+            .info-card {
+                background: #F8F9FA; border-left: 5px solid #1E88E5;
+                padding: 20px; border-radius: 8px; margin: 10px 0;
+            }
+            .section-header { font-weight: bold; color: #1565C0; margin-bottom: 10px; display: flex; align-items: center; }
+            
+            /* 漸層按鈕自定義 */
+            .stButton>button {
+                background: linear-gradient(to right, #FF4B2B, #FF416C);
+                color: white; border: none; padding: 10px 25px; border-radius: 50px;
+                font-weight: bold; transition: 0.3s;
+            }
+            .stButton>button:hover { transform: scale(1.05); box-shadow: 0 5px 15px rgba(255, 75, 43, 0.4); }
         </style>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. Data Loading (Google Sheet Sync)
+# 2. 資料讀取
 # ==========================================
 @st.cache_data(ttl=30)
-def load_physics_db():
+def load_db():
     SHEET_URL = "https://docs.google.com/spreadsheets/d/1LeI3C5iHf7_bVEdGG2PaB3WPpbveyYOT3E3OBrY0TWg/export?format=csv"
     try:
-        df = pd.read_csv(SHEET_URL)
-        return df.fillna("")
+        return pd.read_csv(SHEET_URL).fillna("")
     except:
-        st.error("Connection Error: Please check Google Sheet permissions.")
-        return pd.DataFrame()
+        return pd.DataFrame({'word':['Error'], 'roots':['N/A']})
 
 # ==========================================
-# 3. NMO Rendering Engine (English)
+# 3. 介面渲染函數 (復刻版)
 # ==========================================
-def render_physics_card(row, o_layer):
-    # Header Section
-    st.markdown(f"<div class='hero-title'>{row.get('word', 'Unknown')}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='unit-sub'>Standard Unit: {row.get('phonetic', 'N/A')}</div>", unsafe_allow_html=True)
-    st.markdown(f"<span class='dimension-tag'>GENO-CODE: {row.get('roots', 'N/A')}</span>", unsafe_allow_html=True)
-    
-    # Breakdown Section
-    breakdown_text = str(row.get('breakdown', ''))
-    styled_breakdown = breakdown_text.replace("*", "<span class='operator'>×</span>").replace("/", "<span class='operator'>÷</span>")
-    st.markdown(f"<div class='physics-breakdown'>{styled_breakdown}</div>", unsafe_allow_html=True)
+def render_physics_interface(row, o_layer):
+    # 標題與單位
+    st.markdown(f"<div class='main-word'>{row.get('word', 'N/A')}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='phonetic'>// {row.get('phonetic', 'N/A')} //</div>", unsafe_allow_html=True)
+    st.markdown(f"<span class='dim-pill'>🧬 基因碼: {row.get('roots', 'N/A')}</span>", unsafe_allow_html=True)
 
-    st.divider()
-
-    # O-Axis Multi-Layer Logic
-    if o_layer == 1:
-        st.info(f"🧬 **[GENETIC DIMENSION]**\n\nBase Tensor Composition: `{row.get('roots', '')}`\n\nThis code represents the fundamental 'DNA' of the physical quantity across SI dimensions.")
-    elif o_layer == 2:
-        st.success(f"📚 **[PHYSICS DEFINITION]**\n\n**Definition:** {row.get('definition', '')}\n\n**Common Formula:** `{row.get('example', '')}`")
+    # 字根拆解區 (Breakdown)
+    # 將 "Mass * Accel" 轉換為 UI 塊
+    raw_breakdown = str(row.get('breakdown', ''))
+    if "*" in raw_breakdown:
+        parts = raw_breakdown.split("*")
+        op = "×"
+    elif "/" in raw_breakdown:
+        parts = raw_breakdown.split("/")
+        op = "÷"
     else:
-        st.warning(f"🌊 **[SENSORY VIBE]**\n\n**Intuition:** {row.get('vibe', '')}\n\n**Memory Hook:** {row.get('memory_hook', '')}")
+        parts = [raw_breakdown]
+        op = ""
+
+    breakdown_html = "<div class='root-container'>"
+    for i, p in enumerate(parts):
+        breakdown_html += f"<div class='root-block'>{p.strip()}</div>"
+        if i < len(parts) - 1:
+            breakdown_html += f"<div class='root-operator'>{op}</div>"
+    breakdown_html += "</div>"
+    st.markdown(breakdown_html, unsafe_allow_html=True)
+
+    # 深度內容區 (依據 o-axis)
+    col1, col2 = st.columns([1.5, 1])
+
+    with col1:
+        if o_layer == 1:
+            st.markdown(f"""
+                <div class='info-card'>
+                    <div class='section-header'>🧬 維度解碼 (Dimension)</div>
+                    此物理量的宇宙組成代碼為 <b>{row.get('roots')}</b>。<br>
+                    這代表了它在質量 (M)、長度 (L)、時間 (T) 之間的比例關係。
+                </div>
+            """, unsafe_allow_html=True)
+        elif o_layer == 2:
+            st.markdown(f"""
+                <div class='info-card'>
+                    <div class='section-header'>🎯 核心定義 (Definition)</div>
+                    {row.get('definition', '尚未輸入定義')}
+                </div>
+                <div class='info-card'>
+                    <div class='section-header'>📝 實戰公式 (Example)</div>
+                    <code>{row.get('example', 'N/A')}</code>
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+                <div class='info-card'>
+                    <div class='section-header'>🌊 直覺感官 (Vibe)</div>
+                    {row.get('vibe', '尚未輸入感官描述')}
+                </div>
+            """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown(f"""
+            <div class='info-card' style='border-left-color: #FFA000;'>
+                <div class='section-header'>💡 記憶鉤子</div>
+                {row.get('memory_hook', '無')}
+            </div>
+        """, unsafe_allow_html=True)
 
 # ==========================================
-# 4. Main Application Flow
+# 4. 主程式
 # ==========================================
 def main():
-    inject_physics_css()
-    df = load_physics_db()
+    inject_etymon_style()
+    df = load_db()
 
-    # Sidebar UI
+    # 側邊欄導航
     st.sidebar.title("⚛️ Physics Decoder")
-    st.sidebar.subheader("Observation Layer (o-axis)")
+    
+    # 模仿 Era Gateway 的分類篩選
+    category = st.sidebar.selectbox("分類篩選", ["全部"] + list(df['category'].unique()))
+    
     o_layer = st.sidebar.select_slider(
-        "Slide to switch depth:",
+        "觀測深度 (o-axis)",
         options=[1, 2, 3],
-        format_func=lambda x: {1: "Genetic", 2: "Logic", 3: "Sensory"}[x]
+        format_func=lambda x: {1:"基因維度", 2:"定義/公式", 3:"感官記憶"}[x]
     )
 
-    st.sidebar.markdown("---")
-    search = st.sidebar.text_input("🔍 Search Quantity (e.g., Force)")
-
-    # Main Screen Logic
-    if search:
-        mask = df.apply(lambda r: search.lower() in str(r.values).lower(), axis=1)
-        res = df[mask]
-        if not res.empty:
-            render_physics_card(res.iloc[0], o_layer)
-        else:
-            st.error("No results found. Please check your spelling.")
+    if category != "全部":
+        filtered_df = df[df['category'] == category]
     else:
-        if st.button("🎲 Random Discovery"):
-            if not df.empty:
-                st.session_state.p_data = df.sample(1).iloc[0].to_dict()
-                st.rerun()
-            
-        if 'p_data' in st.session_state:
-            render_physics_card(st.session_state.p_data, o_layer)
-        else:
-            st.write("👈 Search in the sidebar or hit 'Random Discovery' to start.")
+        filtered_df = df
+
+    # 主畫面邏輯
+    st.sidebar.markdown("---")
+    if st.sidebar.button("下一個物理量 ➜"):
+        st.session_state.current_data = filtered_df.sample(1).iloc[0].to_dict()
+
+    if 'current_data' not in st.session_state and not filtered_df.empty:
+        st.session_state.current_data = filtered_df.iloc[0].to_dict()
+
+    if 'current_data' in st.session_state:
+        render_physics_interface(st.session_state.current_data, o_layer)
 
 if __name__ == "__main__":
     main()
