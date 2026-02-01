@@ -9,3 +9,4 @@ gTTS
 
 # 基礎工具 (通常 Streamlit 環境已內建，但建議列出)
 requests
+streamlit-elements
