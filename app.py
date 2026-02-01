@@ -45,22 +45,34 @@ def load_physics_db():
 # 3. 渲染邏輯 (o-axis 切片)
 # ==========================================
 def render_physics_card(row, o_layer):
-    # 標題與維度標籤
-    st.markdown(f"<div class='hero-title'>{row['word']}</div>", unsafe_allow_html=True)
-    st.markdown(f"<span class='dimension-tag'>基因碼: {row['roots']}</span>", unsafe_allow_html=True)
+    # 1. 抓取資料（使用 get 預防 Key 錯誤）
+    word = row.get('word', 'Unknown')
+    roots = row.get('roots', '[0,0,0,0,0,0,0]')
+    unit = row.get('phonetic', '')  # 在物理版中，phonetic 欄位拿來放單位 (如 Newton)
+    breakdown = row.get('breakdown', '')
+    definition = row.get('definition', '')
+    example = row.get('example', '')
+    vibe = row.get('vibe', '')
+    hook = row.get('memory_hook', row.get('hook', '')) # 兼容兩個可能的欄位名
+
+    # 2. 標題與單位渲染
+    st.markdown(f"<div class='hero-title'>{word}</div>", unsafe_allow_html=True)
+    if unit:
+        st.markdown(f"<div style='font-size: 1.5rem; color: #666; margin-bottom: 10px;'>標準單位: {unit}</div>", unsafe_allow_html=True)
+    st.markdown(f"<span class='dimension-tag'>基因碼: {roots}</span>", unsafe_allow_html=True)
     
-    # 物理字根拆解 (解決標籤外露問題)
-    styled_breakdown = str(row['breakdown']).replace("*", "<span class='operator'>×</span>").replace("/", "<span class='operator'>÷</span>")
+    # 3. 結構拆解渲染
+    styled_breakdown = str(breakdown).replace("*", "<span class='operator'>×</span>").replace("/", "<span class='operator'>÷</span>")
     st.markdown(f"<div class='physics-breakdown'>{styled_breakdown}</div>", unsafe_allow_html=True)
 
-    # N-M-O 觀測深度切換
+    # 4. N-M-O 觀測深度切換
     st.divider()
     if o_layer == 1:
-        st.info(f"🧬 **[基因維度層]**\n\n該物理量在宇宙中的底層代碼為：`{row['roots']}`")
+        st.info(f"🧬 **[基因維度層]**\n\n底層代碼：`{roots}`\n\n這代表了該量在質量、長度、時間等 7 個基本維度的組成。")
     elif o_layer == 2:
-        st.success(f"📚 **[物理定義層]**\n\n{row['definition']}\n\n**常用公式：** `{row['example']}`")
+        st.success(f"📚 **[物理定義層]**\n\n**定義：** {definition}\n\n**常用公式：** `{example}`")
     else:
-        st.warning(f"🌊 **[感官語感層]**\n\n**直覺描述：** {row['vibe']}\n\n**記憶點：** {row['hook']}")
+        st.warning(f"🌊 **[感官語感層]**\n\n**直覺語感：** {vibe}\n\n**記憶鉤子：** {hook}")
 
 # ==========================================
 # 4. 主程式 (刪除多餘 Menu，直球對決)
