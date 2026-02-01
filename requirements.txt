@@ -1,3 +1,11 @@
-streamlit==1.31.0
+# 核心 Web 框架
+streamlit
+
+# 數據處理與 Google Sheets 串接
 pandas
-numpy
+
+# 語音合成 (將物理量轉為語音)
+gTTS
+
+# 基礎工具 (通常 Streamlit 環境已內建，但建議列出)
+requests
