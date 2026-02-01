@@ -1,65 +1,152 @@
 import streamlit as st
+import pandas as pd
+import base64
+import time
+import json
+from io import BytesIO
+from gtts import gTTS
+import streamlit.components.v1 as components
 
-# --- 核心通用函數 ---
-def n_m_o_logic(n, m, o):
-    """
-    通用邏輯：處理第 n 欄, 第 m 列, 第 o 層
-    將來擴充 n+i, m+j, o+l 只需要修改調用範圍
-    """
-    # 這裡實作你筆記中的物理與感官邏輯映射
-    if o == 1: # 假設第 1 層是結構層
-        return f"結構(A/B/C): {n}-{m}"
-    elif o == 2: # 假設第 2 層是感官渲染
-        return f"感官(動/靜): {n*o}"
-    else: # 假設第 3 層以上是物理公式
-        return f"F = {n} * {m} * {o} (N)"
+# ==========================================
+# 1. 核心配置與 CSS (物理字根專屬優化)
+# ==========================================
+st.set_page_config(page_title="Physics Decoder v1.0", page_icon="⚛️", layout="wide")
 
-# --- UI 佈局 ---
-st.set_page_config(layout="wide")
+def inject_physics_css():
+    st.markdown("""
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&family=Noto+Sans+TC:wght@500;700&display=swap');
 
-st.markdown("""
-    <style>
-    .stSlider [data-baseweb="slider"] {
-        width: 80%;
-        margin: 0 auto;
-    }
-    </style>
+            .physics-breakdown {
+                font-family: 'Fira Code', monospace;
+                font-size: 2rem !important;
+                background: linear-gradient(135deg, #FF6F00 0%, #E65100 100%);
+                color: #FFFFFF;
+                padding: 15px 35px;
+                border-radius: 20px;
+                display: inline-block;
+                margin: 20px 0;
+                box-shadow: 0 10px 20px rgba(230, 81, 0, 0.2);
+            }
+            .operator { color: #FFE0B2; margin: 0 10px; font-weight: bold; }
+            .hero-title { font-size: 4rem; font-weight: 900; color: #E65100; }
+            .dimension-tag { 
+                background: #FFF3E0; 
+                color: #E65100; 
+                padding: 5px 15px; 
+                border-radius: 50px; 
+                font-size: 1.2rem;
+                border: 1px solid #FFE0B2;
+            }
+        </style>
     """, unsafe_allow_html=True)
 
-st.title("Pino 邏輯建模：n x m x o 多維系統")
+# ==========================================
+# 2. 物理核心邏輯 (n x m x o)
+# ==========================================
+def n_m_o_physics_engine(row, o_layer):
+    """
+    將資料庫行數據 映射至 n-m-o 觀測面
+    o=1: 基因維度 | o=2: 物理定義 | o=3: 感官語感
+    """
+    if o_layer == 1:
+        return f"🧬 維度密碼 (1-7): \n `{row['roots']}`"
+    elif o_layer == 2:
+        return f"📚 物理語法: \n {row['definition']}"
+    else:
+        return f"🌊 直覺語感: \n {row['vibe']}"
 
-# --- 層指示器 (O 層控制) ---
-# 用蘋果風格的 slider 模擬 o 軸
-st.subheader("層指示器 (o-axis)")
-o_selector = st.select_slider(
-    "滑動以切換不同深度的邏輯層 (o)",
-    options=[i for i in range(1, 31)],
-    value=1
-)
+# ==========================================
+# 3. 資料讀取 (建議欄位：category, roots, meaning, word, breakdown, definition, vibe, example, hook)
+# ==========================================
+@st.cache_data(ttl=60)
+def load_physics_db():
+    # 這裡預留你的 Google Sheet ID
+    SHEET_ID = "你的_GOOGLE_SHEET_ID" 
+    url = f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv'
+    
+    # 模擬數據（若沒接通 Google Sheet 時使用）
+    mock_data = {
+        'category': ['力學', '電學', '磁學'],
+        'word': ['Force (F)', 'Voltage (V)', 'Magnetic Field (B)'],
+        'roots': ['[1,1,-2,0,0,0,0]', '[1,2,-3,-1,0,0,0]', '[1,0,-2,-1,0,0,0]'],
+        'breakdown': ['Mass * Accel', 'Energy / Charge', 'Force / (q*v)'],
+        'definition': ['改變運動狀態的作用', '單位電荷的能量差', '磁力空間性質'],
+        'vibe': ['推動的沉重感', '推動電子流動的壓力', '看不見的旋轉引導力'],
+        'example': ['F = ma', 'V = IR', 'F = qvB'],
+        'hook': ['牛頓第二定律', '電路的原動力', '右手開掌定則']
+    }
+    try:
+        df = pd.read_csv(url)
+        return df
+    except:
+        return pd.DataFrame(mock_data)
 
-st.divider()
+# ==========================================
+# 4. 渲染百科全書卡片 (Physics Style)
+# ==========================================
+def render_physics_card(row, o_val):
+    st.markdown(f"<div class='hero-title'>{row['word']}</div>", unsafe_allow_html=True)
+    
+    # 顯示維度標籤
+    st.markdown(f"<span class='dimension-tag'>Dim: {row['roots']}</span>", unsafe_allow_html=True)
+    
+    # 物理字根拆解 (Breakdown)
+    styled_breakdown = str(row['breakdown']).replace("*", "<span class='operator'>×</span>").replace("/", "<span class='operator'>÷</span>")
+    st.markdown(f"<div class='physics-breakdown'>{styled_breakdown}</div>", unsafe_allow_html=True)
 
-# --- 矩陣顯示區 (N 欄 x M 列) ---
-st.header(f"當前觀測面：第 {o_selector} 層")
+    # N-M-O 動態層顯示
+    display_content = n_m_o_physics_engine(row, o_val)
+    st.info(display_content)
 
-# 定義維度 (方便未來 n+i, m+j 擴充)
-rows_m = 3
-cols_n = 3
+    c1, c2 = st.columns(2)
+    with c1:
+        st.success(f"**📖 實戰公式：**\n{row['example']}")
+    with c2:
+        st.warning(f"**🪝 記憶鉤子：**\n{row['hook']}")
 
-for m in range(1, rows_m + 1):
-    cols = st.columns(cols_n)
-    for n in range(1, cols_n + 1):
-        with cols[n-1]:
-            # 這裡就是你要求的：每一格都調用同一個函數
-            result = n_m_o_logic(n, m, o_selector)
-            
-            with st.container(border=True):
-                st.write(f"**座標 ({n}, {m}, {o_selector})**")
-                st.info(result)
+# ==========================================
+# 5. 主程式
+# ==========================================
+def main():
+    inject_physics_css()
+    df = load_physics_db()
 
-# --- 邏輯示範圖解 ---
-st.divider()
-st.subheader("系統架構說明")
-st.write("這是一個三維張量結構的切片展示：")
-# 插入圖解以幫助解釋 n x m x o 的幾何關係
-#
+    st.sidebar.title("⚛️ Physics Decoder")
+    mode = st.sidebar.radio("導航選單", ["張量觀測站 (NMO)", "物理基因庫", "Mix Lab 合成器"])
+
+    if mode == "張量觀測站 (NMO)":
+        st.title("Pino 物理建模：n x m x o 觀測站")
+        
+        # O 軸控制
+        o_layer = st.select_slider(
+            "切換邏輯觀測深度 (o-axis)",
+            options=[1, 2, 3],
+            format_func=lambda x: {1: "基因維度", 2: "物理定義", 3: "感官語感"}[x]
+        )
+
+        st.divider()
+
+        # 隨機抽一個物理量來展示切片
+        if st.button("🎲 觀測下一個物理量"):
+            st.session_state.current_phys = df.sample(1).iloc[0].to_dict()
+
+        if 'current_phys' in st.session_state:
+            render_physics_card(st.session_state.current_phys, o_layer)
+
+    elif mode == "物理基因庫":
+        st.title("物理字根搜尋列表")
+        search = st.text_input("🔍 輸入關鍵字或維度向量搜尋...")
+        if search:
+            mask = df.apply(lambda r: search.lower() in str(r.values).lower(), axis=1)
+            st.dataframe(df[mask], use_container_width=True)
+        else:
+            st.dataframe(df, use_container_width=True)
+
+    elif mode == "Mix Lab 合成器":
+        st.title("Mix Lab: 物理公式合成實驗室")
+        st.write("這是在 14 欄位邏輯下，透過「維度加減」預測新物理量的功能（開發中）。")
+        # 這裡可以嵌入你之前寫的 React Wheel 組件
+
+if __name__ == "__main__":
+    main()
