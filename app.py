@@ -34,7 +34,7 @@ def inject_physics_css():
 @st.cache_data(ttl=60)
 def load_physics_db():
     # 填入你的 Google Sheet CSV 連結
-    SHEET_URL = "https://docs.google.com/spreadsheets/d/1LeI3C5iHf7_bVEdGG2PaB3WPpbveyYOT3E3OBrY0TWg/edit?usp=sharing"
+    SHEET_URL = "https://docs.google.com/spreadsheets/d/1LeI3C5iHf7_bVEdGG2PaB3WPpbveyYOT3E3OBrY0TWg/edit?gid=0#gid=0"
     try:
         return pd.read_csv(SHEET_URL).fillna("")
     except:
